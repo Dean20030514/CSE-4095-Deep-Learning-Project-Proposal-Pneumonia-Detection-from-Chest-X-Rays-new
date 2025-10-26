@@ -1,0 +1,15 @@
+model: resnet50
+img_size: 512
+batch_size: 16
+epochs: 40
+optimizer: adamw
+lr: 2e-4
+weight_decay: 2e-4
+loss: focal
+focal: {gamma: 1.5}
+scheduler: cosine
+amp: true
+optuna: {trials: 30, search_space: [lr, weight_decay, dropout, img_size]}
+early_stopping: {metric: pneumonia_recall, patience: 7}
+external_eval: {dataset: chexpert_small, enabled: true}
+export: {onnx: true}

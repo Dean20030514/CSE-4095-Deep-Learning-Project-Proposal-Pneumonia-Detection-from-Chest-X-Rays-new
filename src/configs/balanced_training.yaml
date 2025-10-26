@@ -1,0 +1,14 @@
+model: efficientnet_b0
+img_size: 384
+batch_size: 16
+epochs: 25
+optimizer: adamw
+lr: 3e-4
+weight_decay: 1e-4
+loss: weighted_ce
+scheduler: cosine
+amp: true
+early_stopping: {metric: pneumonia_recall, patience: 5}
+aug: {flip: 0.5, rotate: 10, brightness_contrast: 0.2}
+threshold_modes: {max_recall: true, balanced: true}
+log: {run_name: balanced_training, csv: runs/metrics.csv}
