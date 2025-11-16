@@ -1,0 +1,46 @@
+# High Resolution EfficientNet-B2 Configuration
+# For final model training with optimal settings discovered from experiments
+# Based on best performing model: EfficientNet-B2 @ 512px
+
+# Model Architecture
+model: efficientnet_b2
+pretrained: true
+
+# Data
+data_root: data
+img_size: 512  # Higher resolution for final model
+batch_size: 12  # Reduced for higher resolution
+num_workers: 4
+
+# Training
+epochs: 25
+lr: 0.0005  # Optimal learning rate from experiments
+weight_decay: 0.0001
+patience: 8  # Early stopping patience
+
+# Loss & Sampling
+loss: focal  # Focal loss for class imbalance
+focal_gamma: 1.5
+use_weighted_sampler: true
+
+# Augmentation (medium level - proven best)
+augmentation:
+  horizontal_flip: 0.5
+  rotation_degrees: 10
+  brightness: 0.1
+  contrast: 0.1
+  
+# Optimizer
+optimizer: adamw
+scheduler: cosine
+warmup_epochs: 2
+
+# Mixed Precision
+amp: true
+
+# Output
+output_dir: runs/final_efficientnet_b2_512
+save_best_only: false  # Save both best and last
+
+# Random seed
+seed: 42

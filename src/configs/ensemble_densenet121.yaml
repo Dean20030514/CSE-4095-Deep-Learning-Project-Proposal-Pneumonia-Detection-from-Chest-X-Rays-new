@@ -1,0 +1,50 @@
+# Ensemble Diversity Configuration - DenseNet121
+# Complementary to ResNet50 and EfficientNet-B0
+
+# Model Architecture
+model: densenet121
+pretrained: true
+
+# Data
+data_root: data
+img_size: 384  # Different from ResNet50
+batch_size: 16
+num_workers: 4
+
+# Training
+epochs: 25
+lr: 0.0004
+weight_decay: 0.00015
+patience: 8
+
+# Loss & Sampling
+loss: focal
+focal_gamma: 2.0  # Different from ResNet50
+use_weighted_sampler: true
+
+# Augmentation (medium)
+augmentation:
+  horizontal_flip: 0.5
+  rotation_degrees: 10
+  brightness: 0.1
+  contrast: 0.1
+  
+# Optimizer
+optimizer: adamw
+scheduler: cosine
+warmup_epochs: 2
+
+# Mixed Precision
+amp: true
+
+# Output
+output_dir: runs/ensemble_densenet121
+save_best_only: false
+
+# Random seed (different from other ensemble members)
+seed: 456
+
+# Notes:
+# - DenseNet has different connectivity pattern (dense connections)
+# - Provides architectural diversity for ensemble
+# - Efficient parameter usage (~8M params)

@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+*.pyo
+*.pyd
+
+# Environments
+.venv/
+venv/
+.env
+
+# Jupyter/VSCode
+.ipynb_checkpoints/
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Data and artifacts (keep raw data out of Git)
+/data/
+/runs/
+/checkpoints/
+/reports/figs/
+**/*.pt
+**/*.onnx
+
+# Logs
+logs/
+*.log

@@ -1,0 +1,11 @@
+torch
+torchvision
+albumentations
+opencv-python-headless
+numpy<2.3.0
+pandas
+scikit-learn
+matplotlib
+pyyaml
+tqdm
+streamlit

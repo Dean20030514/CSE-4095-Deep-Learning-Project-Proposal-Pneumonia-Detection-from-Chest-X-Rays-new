@@ -1,0 +1,25 @@
+# Colab-friendly configuration - fast sanity check
+model: resnet18
+img_size: 224
+batch_size: 16
+epochs: 10
+optimizer: adamw
+lr: 1e-3
+weight_decay: 1e-4
+loss: weighted_ce
+sampler: weighted_random
+scheduler: cosine
+amp: true
+seed: 42
+num_workers: 0  # Windows compatibility (avoid multiprocessing pickle errors)
+use_albumentations: false
+augment_level: light
+early_stopping:
+  metric: pneumonia_recall
+  patience: 3
+aug:
+  flip: 0.5
+  rotate: 10
+log:
+  run_name: colab_friendly
+  csv: metrics.csv

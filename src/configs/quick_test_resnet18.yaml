@@ -1,0 +1,21 @@
+seed: 42
+optimizer: adamw
+weight_decay: 0.0001
+scheduler: cosine
+amp: true
+num_workers: 0
+use_albumentations: true
+early_stopping:
+  metric: pneumonia_recall
+  patience: 10
+log:
+  run_name: quick_test
+  csv: metrics.csv
+model: resnet18
+img_size: 224
+batch_size: 32
+epochs: 3
+lr: 0.001
+loss: weighted_ce
+sampler: weighted_random
+augment_level: light
