@@ -11,30 +11,26 @@
 
 **Start here to evaluate the project:**
 
-1. **📄 [FINAL_PROJECT_REPORT.md](FINAL_PROJECT_REPORT.md)** - Complete 6-10 page academic report with all results, analysis, and conclusions
-2. **📋 [PROJECT_ENHANCEMENT_SUMMARY.md](PROJECT_ENHANCEMENT_SUMMARY.md)** - One-page executive summary of enhancements
-3. **🎤 [PRESENTATION_SCRIPT.md](PRESENTATION_SCRIPT.md)** - 7-8 minute presentation script with speaker notes
-4. **🎨 [PRESENTATION_SLIDES_OUTLINE.md](PRESENTATION_SLIDES_OUTLINE.md)** - Detailed 20-slide presentation structure
+1. **📄 [docs/FINAL_PROJECT_REPORT.md](docs/FINAL_PROJECT_REPORT.md)** - Complete academic report with all results, analysis, and conclusions
+2. **📋 [docs/EXECUTIVE_SUMMARY_EN.md](docs/EXECUTIVE_SUMMARY_EN.md)** - Executive summary of the project
+3. **🎤 [docs/PRESENTATION_SCRIPT.md](docs/PRESENTATION_SCRIPT.md)** - Presentation script with speaker notes
+4. **🎨 [docs/PRESENTATION_SLIDES_OUTLINE.md](docs/PRESENTATION_SLIDES_OUTLINE.md)** - Detailed presentation structure
 5. **📊 [reports/comprehensive/EXPERIMENT_SUMMARY.md](reports/comprehensive/EXPERIMENT_SUMMARY.md)** - Full experimental comparison table
-6. **🎴 [MODEL_CARD.md](MODEL_CARD.md)** - Model documentation with limitations and ethical considerations
+6. **🎴 [docs/MODEL_CARD.md](docs/MODEL_CARD.md)** - Model documentation with limitations and ethical considerations
 
 ### 🧑‍💻 For Students Reproducing the Project
 
 **Follow this learning path:**
 
-1. **🚀 [QUICK_START_GUIDE.md](QUICK_START_GUIDE.md)** - 4-week implementation timeline
-2. **📖 [pneumonia_x_ray_project_implementation_playbook_v_1.3.md](pneumonia_x_ray_project_implementation_playbook_v_1.3.md)** - Comprehensive playbook
-3. **🔬 [docs/ANALYSIS_GUIDE.md](docs/ANALYSIS_GUIDE.md)** - How to run all analysis scripts
-4. **📋 [DELIVERABLES_CHECKLIST.md](DELIVERABLES_CHECKLIST.md)** - Track your progress
+1. **📖 [docs/PLAYBOOK.md](docs/PLAYBOOK.md)** - Comprehensive implementation playbook
+2. **🔬 [docs/ANALYSIS_GUIDE.md](docs/ANALYSIS_GUIDE.md)** - How to run all analysis scripts
 
 ### 🔬 For Researchers Extending the Work
 
 **Technical deep-dives:**
 
-1. **📊 [OPTIMAL_DATASET_REPORT.md](OPTIMAL_DATASET_REPORT.md)** - Dataset cleaning and patient-level splits methodology
-2. **⚙️ [docs/CODE_OPTIMIZATION_SUMMARY.md](docs/CODE_OPTIMIZATION_SUMMARY.md)** - Code architecture and optimization decisions
-3. **📈 [reports/calibration/calibration_report.json](reports/calibration/calibration_report.json)** - Model calibration analysis
-4. **🔍 [reports/error_analysis/failure_modes.json](reports/error_analysis/failure_modes.json)** - Detailed error analysis
+1. **📈 [reports/calibration/calibration_report.json](reports/calibration/calibration_report.json)** - Model calibration analysis
+2. **🔍 [reports/error_analysis/failure_modes.json](reports/error_analysis/failure_modes.json)** - Detailed error analysis
 
 ---
 
@@ -169,11 +165,9 @@ python scripts/error_analysis.py --ckpt runs/model_efficientnet_b2/best.pt
 
 ## 📖 Documentation
 
-- **[Analysis Guide](docs/ANALYSIS_GUIDE.md)** - Complete toolkit documentation
-- **[Model Card](MODEL_CARD.md)** - Model specifications
-- **[Playbook](docs/PLAYBOOK.md)** - Full implementation guide
-- **[Code Summary](docs/CODE_OPTIMIZATION_SUMMARY.md)** - Optimization details
-- **[Changelog](docs/CHANGELOG.md)** - Project history
+- **[docs/ANALYSIS_GUIDE.md](docs/ANALYSIS_GUIDE.md)** - Complete toolkit documentation
+- **[docs/MODEL_CARD.md](docs/MODEL_CARD.md)** - Model specifications
+- **[docs/PLAYBOOK.md](docs/PLAYBOOK.md)** - Full implementation guide
 
 ---
 
@@ -250,7 +244,7 @@ python -m src.train --config <path> \
 
 ## 📝 Citation
 
-```
+```text
 Pneumonia Detection from Chest X-Rays using Deep Learning
 Deep Learning Course Project, 2025
 ```
