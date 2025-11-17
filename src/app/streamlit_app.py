@@ -96,7 +96,7 @@ def main():
         uploaded = st.file_uploader("Upload chest X-ray (PNG/JPG)", type=["png", "jpg", "jpeg"]) 
         if uploaded:
             img = Image.open(uploaded).convert('RGB')
-            st.image(img, caption="Input image", use_container_width=True)
+            st.image(img, caption="Input image", width='stretch')
             st.info("Sample output: NORMAL=0.30, PNEUMONIA=0.70")
         return
 
@@ -114,9 +114,42 @@ def main():
     st.sidebar.write(f"**Image size**: {img_size}px")
     st.sidebar.write(f"**Classes**: {list(idx_to_class.values())}")
     
+    # Mode selection for threshold
+    st.sidebar.markdown("---")
+    st.sidebar.subheader("🎯 Operation Mode")
+    
+    mode = st.sidebar.selectbox(
+        "Select Mode",
+        ["Balanced Mode", "Screening Mode (High Sensitivity)", "High Precision Mode", "Custom"],
+        help="Choose preset thresholds optimized for different scenarios"
+    )
+    
+    # Set threshold based on mode
+    mode_thresholds = {
+        "Screening Mode (High Sensitivity)": 0.15,  # High recall for pneumonia
+        "Balanced Mode": 0.50,  # Balance precision and recall
+        "High Precision Mode": 0.75,  # Minimize false positives
+        "Custom": 0.50
+    }
+    
+    default_threshold = mode_thresholds[mode]
+    
+    if mode == "Custom":
+        threshold = st.sidebar.slider(
+            "Classification Threshold", 
+            0.05, 0.95, default_threshold, 0.05,
+            help="Threshold for PNEUMONIA classification"
+        )
+    else:
+        threshold = default_threshold
+        st.sidebar.info(f"Using threshold: {threshold:.2f}")
+        if mode == "Screening Mode (High Sensitivity)":
+            st.sidebar.caption("🔍 Optimized for catching pneumonia cases (minimizes false negatives)")
+        elif mode == "High Precision Mode":
+            st.sidebar.caption("🎯 Optimized for reducing false alarms")
+    
+    st.sidebar.markdown("---")
     show_gradcam = st.sidebar.checkbox("Show Grad-CAM", value=True)
-    threshold = st.sidebar.slider("Classification Threshold", 0.0, 1.0, 0.5, 0.05,
-                                   help="Threshold for PNEUMONIA classification")
     
     # File uploader
     uploaded = st.file_uploader("📤 Upload chest X-ray image", type=["png", "jpg", "jpeg", "bmp"])
@@ -129,7 +162,7 @@ def main():
         
         with col1:
             st.subheader("📸 Input Image")
-            st.image(img, use_container_width=True)
+            st.image(img, width='stretch')
         
         # Prepare image for model
         tf = T.Compose([
@@ -147,7 +180,7 @@ def main():
         # Get prediction
         pred_idx = logits.argmax(dim=1).item()
         pred_class = idx_to_class[pred_idx]
-        pred_conf = probs[pred_idx].item()
+        pred_conf = float(probs[pred_idx].item())
         
         # Threshold-based prediction for PNEUMONIA
         pneumonia_prob = probs[pneumonia_idx].item()
@@ -165,22 +198,29 @@ def main():
             
             st.markdown("---")
             
-            # Default prediction
+            # Default prediction with confidence
+            st.markdown("### 🎯 Model Prediction")
             if pred_class == "PNEUMONIA":
-                st.error(f"⚠️ **Predicted**: {pred_class} (confidence: {pred_conf:.1%})")
+                st.error(f"⚠️ **{pred_class}** (confidence: {pred_conf:.1%})")
             else:
-                st.success(f"✅ **Predicted**: {pred_class} (confidence: {pred_conf:.1%})")
+                st.success(f"✅ **{pred_class}** (confidence: {pred_conf:.1%})")
             
             # Threshold-based prediction
-            st.info(f"🎚️ **Threshold-based** (t={threshold:.2f}): {threshold_pred}")
+            st.markdown(f"### 🎚️ Mode-Based Decision (t={threshold:.2f})")
+            if threshold_pred == "PNEUMONIA":
+                st.error(f"⚠️ **{threshold_pred}** (PNEUMONIA probability: {pneumonia_prob:.1%})")
+            else:
+                st.success(f"✅ **{threshold_pred}** (PNEUMONIA probability: {pneumonia_prob:.1%})")
             
             # Warning for borderline cases
-            if 0.4 <= pneumonia_prob <= 0.6:
-                st.warning("⚠️ Borderline case - consider additional clinical evaluation")
+            if 0.35 <= pneumonia_prob <= 0.65:
+                st.warning("⚠️ **Borderline case** - Consider additional clinical evaluation or repeat imaging")
         
         # Grad-CAM visualization
         if show_gradcam:
+            st.markdown("---")
             st.subheader("🔥 Grad-CAM Visualization")
+            st.caption("Visual explanation showing regions that influenced the model's decision")
             
             with st.spinner("Generating Grad-CAM..."):
                 cam = generate_gradcam(model, x, pred_idx, model_name)
@@ -189,13 +229,23 @@ def main():
                 # Create overlay
                 overlay_img = overlay_heatmap(img, cam, alpha=0.4)
                 
-                col_cam1, col_cam2 = st.columns(2)
-                with col_cam1:
-                    st.image(cam, caption="Grad-CAM Heatmap", use_container_width=True, clamp=True)
-                with col_cam2:
-                    st.image(overlay_img, caption="Overlay", use_container_width=True)
+                # Three-panel display
+                col_cam1, col_cam2, col_cam3 = st.columns(3)
                 
-                st.info("💡 Heatmap shows regions that influenced the model's decision (warmer colors = higher importance)")
+                with col_cam1:
+                    st.markdown("**📷 Original Image**")
+                    st.image(img, width='stretch')
+                
+                with col_cam2:
+                    st.markdown("**🌡️ Attention Heatmap**")
+                    st.image(cam, caption="", width='stretch', clamp=True)
+                
+                with col_cam3:
+                    st.markdown(f"**🔍 Overlay (Prediction: {pred_class})**")
+                    st.image(overlay_img, width='stretch')
+                
+                st.info("💡 **Interpretation**: Warmer colors (red/yellow) indicate regions with higher influence on the prediction. "
+                       "The model focuses on these areas when making its decision.")
     
     else:
         st.info("👆 Please upload a chest X-ray image to begin analysis")

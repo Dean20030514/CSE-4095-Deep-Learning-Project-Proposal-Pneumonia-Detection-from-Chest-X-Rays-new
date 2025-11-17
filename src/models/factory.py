@@ -5,6 +5,29 @@ from torchvision import models
 
 
 def build_model(name: str, num_classes: int) -> Tuple[nn.Module, int]:
+    """Build a pretrained classification model for chest X-ray analysis.
+    
+    Loads a model with ImageNet pretrained weights and replaces the final
+    classification layer to match the target number of classes.
+    
+    Args:
+        name: Model architecture name. Supported:
+            - 'resnet18', 'resnet50': ResNet variants
+            - 'efficientnet_b0', 'efficientnet_b2': EfficientNet variants
+            - 'densenet121': DenseNet-121
+        num_classes: Number of output classes (typically 2 for NORMAL/PNEUMONIA)
+    
+    Returns:
+        model: Initialized PyTorch model with modified classifier
+        img_size: Recommended input image size for this architecture
+    
+    Raises:
+        ValueError: If model name is not recognized
+    
+    Example:
+        >>> model, img_size = build_model('resnet18', num_classes=2)
+        >>> print(img_size)  # 224
+    """
     name = name.lower()
     if name in ["resnet18", "resnet-18"]:
         net = models.resnet18(weights=models.ResNet18_Weights.DEFAULT)

@@ -28,6 +28,9 @@
 - [x] `scripts/complete_project_analysis.ps1` - 一键分析脚本⭐
 - [x] `scripts/generate_project_report.py` - 报告生成器⭐
 - [x] `scripts/project_dashboard.py` - 项目仪表盘⭐
+- [x] `scripts/domain_shift_analysis.py` - Domain Shift分析(新增)⭐
+- [x] `scripts/label_noise_detection.py` - 疑似错标检测(新增)⭐
+- [x] `scripts/gradcam_evaluation.py` - Grad-CAM定量评估(新增)⭐
 
 ### 环境与验证
 - [x] `environment.yml` - Conda环境配置
@@ -51,12 +54,15 @@
 - [x] `runs/*/metrics.csv` - 训练日志
 
 ### 待生成的分析报告
-- [ ] `reports/comprehensive/` - 实验横向对比
-- [ ] `reports/best_model_val.json` - 验证集详细评估
-- [ ] `reports/best_model_test.json` - 测试集最终结果
-- [ ] `reports/calibration/` - 校准曲线与指标
-- [ ] `reports/error_analysis/failure_modes.json` - 失败模式分析
-- [ ] `reports/plots/` - 对比图表
+- [x] `reports/comprehensive/` - 实验横向对比(自动生成)✓
+- [x] `reports/best_model_val.json` - 验证集详细评估(自动生成)✓
+- [x] `reports/best_model_test.json` - 测试集最终结果(自动生成)✓
+- [x] `reports/calibration/calibration_report.json` - 校准曲线与指标(自动生成)✓
+- [x] `reports/error_analysis/failure_modes.json` - 失败模式分析(自动生成)✓
+- [x] `reports/plots/` - 对比图表(自动生成)✓
+- [ ] `reports/domain_shift_analysis.json` - Domain Shift分析(可选,运行domain_shift_analysis.py)
+- [ ] `reports/label_noise_analysis.json` - 标签噪声检测(可选,运行label_noise_detection.py)
+- [ ] `reports/gradcam_evaluation.json` - Grad-CAM定量评估(可选,运行gradcam_evaluation.py)
 
 **执行命令**: `.\scripts\complete_project_analysis.ps1`
 

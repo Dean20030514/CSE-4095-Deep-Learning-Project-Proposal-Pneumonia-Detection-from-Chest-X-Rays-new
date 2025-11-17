@@ -14,17 +14,30 @@ from src.utils.device import get_device
 
 
 def threshold_sweep(y_true, y_probs, target_class_idx, thresholds=None):
-    """
-    扫描不同阈值,计算每个阈值下的 precision/recall/f1
+    """Sweep classification thresholds to find optimal operating points.
+    
+    Evaluates model performance across different decision thresholds to identify
+    optimal settings for different clinical scenarios (e.g., high sensitivity
+    screening vs. high precision confirmation).
     
     Args:
-        y_true: 真实标签 (N,)
-        y_probs: 预测概率 (N, num_classes)
-        target_class_idx: 目标类索引(如 PNEUMONIA)
-        thresholds: 要扫描的阈值列表
+        y_true: Ground truth labels, shape (N,)
+        y_probs: Predicted probabilities, shape (N, num_classes)
+        target_class_idx: Index of target class (e.g., PNEUMONIA)
+        thresholds: List of thresholds to evaluate (default: 0.1 to 0.95 in steps of 0.05)
     
     Returns:
-        results: 包含每个阈值结果的字典列表
+        List of dicts containing metrics for each threshold:
+            - threshold: Decision threshold
+            - recall: Sensitivity/True Positive Rate
+            - precision: Positive Predictive Value
+            - f1: F1 score (harmonic mean of precision and recall)
+            - tp, fp, fn, tn: Confusion matrix components
+    
+    Example:
+        >>> results = threshold_sweep(y_true, y_probs, pneumonia_idx)
+        >>> best = max(results, key=lambda x: x['f1'])
+        >>> print(f"Best F1={best['f1']:.3f} at threshold={best['threshold']:.2f}")
     """
     if thresholds is None:
         thresholds = np.arange(0.1, 1.0, 0.05)

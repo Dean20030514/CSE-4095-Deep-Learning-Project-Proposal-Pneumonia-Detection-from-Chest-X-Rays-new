@@ -42,16 +42,129 @@ This model is designed for **educational research and demonstration purposes onl
 - **NORMAL**: No pneumonia detected
 - **PNEUMONIA**: Pneumonia detected
 
+### Appropriate Clinical Scenarios (Educational Context)
+
+This model demonstrates potential applications in the following **non-clinical** educational scenarios:
+
+#### ✅ **Suitable Use Cases (Educational/Research Only)**
+
+1. **Primary Care Triage Simulation**
+   - **Context**: Educational simulation of outpatient clinics or urgent care settings
+   - **Use**: Pre-screening to prioritize patients who may need urgent radiologist review
+   - **Benefit**: Demonstrates how AI could help reduce radiologist workload in teaching scenarios
+   - **Threshold**: Screening mode (high sensitivity, threshold ~0.15) to minimize missed cases
+
+2. **Emergency Department Education**
+   - **Context**: Teaching tool for emergency medicine training
+   - **Use**: Rapid preliminary assessment simulation for time-critical cases
+   - **Benefit**: Shows how AI could flag potential pneumonia for immediate physician attention
+   - **Requirement**: Always paired with clinical judgment simulation exercises
+
+3. **Resource-Limited Setting Research**
+   - **Context**: Academic research on AI deployment in areas with radiologist shortages
+   - **Use**: Studying feasibility of AI-assisted screening in underserved regions
+   - **Benefit**: Demonstrates potential to extend diagnostic reach in educational models
+   - **Limitation**: Requires validation on diverse populations before any real deployment
+
+4. **Quality Control Demonstration**
+   - **Context**: Medical imaging quality assurance education
+   - **Use**: Secondary check system demonstration for missed findings
+   - **Benefit**: Teaching about how AI can serve as a safety net in double-reading workflows
+
+5. **Student Learning Tool**
+   - **Context**: Radiology and medical student education
+   - **Use**: Interactive learning aid for pattern recognition training
+   - **Benefit**: Provides immediate feedback and visual explanations (Grad-CAM)
+
+#### ❌ **Inappropriate Use Cases**
+
+1. **Definitive Diagnosis**
+   - ❌ Making final diagnostic decisions without radiologist confirmation
+   - ❌ Determining treatment plans based solely on model output
+   - ❌ Ruling out pneumonia in symptomatic patients with negative predictions
+
+2. **High-Stakes Clinical Decisions**
+   - ❌ ICU patient management or critical care decisions
+   - ❌ Surgical planning or invasive procedure guidance
+   - ❌ Legal/forensic medical determinations
+   - ❌ Insurance claims or disability assessments
+
+3. **Unsupervised Screening**
+   - ❌ Population-wide screening without physician oversight
+   - ❌ Direct-to-consumer health assessment applications
+   - ❌ Automated reporting systems without human verification
+
+4. **Pediatric vs Adult Mismatch**
+   - ❌ Using pediatric-trained model on adult patients without validation
+   - ❌ Applying to elderly patients with complex comorbidities
+   - ❌ Neonatal or premature infant imaging
+
+5. **Complex Cases**
+   - ❌ Patients with immunocompromise (HIV, chemotherapy, etc.)
+   - ❌ Post-operative or post-transplant monitoring
+   - ❌ Suspected COVID-19 or other atypical pneumonias without specific training
+
+### Clinical Integration Considerations (Educational Framework)
+
+**Recommended Workflow (Teaching Scenario)**:
+1. Image acquisition and quality check
+2. Model inference with confidence display
+3. **Mandatory** physician review and final interpretation
+4. Documentation of both AI and physician findings
+5. Feedback loop for continuous learning
+
+**Decision Thresholds by Scenario**:
+- **Screening Mode** (threshold ~0.15): Maximize sensitivity, acceptable false positive rate
+- **Balanced Mode** (threshold ~0.50): Equal weighting of precision and recall
+- **Confirmation Mode** (threshold ~0.75): High precision for reducing false alarms
+
+**Warning Indicators**:
+- Borderline confidence (40-60% probability) → Flag for expert review
+- High confidence mismatch with clinical presentation → Investigate further
+- Poor image quality detected → Manual quality assessment required
+
 ### Intended Users
 - Students learning deep learning and medical imaging
 - Researchers studying AI in healthcare
 - Educators demonstrating ML applications
 
 ### Out-of-Scope Uses
+
+This model should **NOT** be used in the following scenarios:
+
 ❌ **NOT** for clinical diagnosis or treatment decisions  
 ❌ **NOT** a replacement for radiologist interpretation  
-❌ **NOT** approved as a medical device  
-❌ **NOT** for deployment in real healthcare settings without regulatory approval
+❌ **NOT** approved as a medical device by FDA, CE, or other regulatory bodies  
+❌ **NOT** for deployment in real healthcare settings without proper clinical validation  
+❌ **NOT** for forensic, legal, or insurance determinations  
+❌ **NOT** for direct-to-consumer health applications without physician oversight  
+❌ **NOT** on patient populations significantly different from training data (e.g., adults if trained on pediatric data)  
+❌ **NOT** for COVID-19 or other specific pathogen detection without targeted training
+
+### Regulatory and Safety Considerations
+
+**Medical Device Status**: This model is **NOT** a medical device and has not undergone regulatory review.
+
+**Required Safeguards for Any Future Clinical Use Would Include**:
+
+- Prospective clinical validation studies
+- IRB/Ethics committee approval
+- Regulatory clearance (FDA 510(k), CE marking, etc.)
+- Clinical workflow integration testing
+- Continuous monitoring and performance tracking
+- Physician oversight and final decision authority
+- Clear labeling of AI-generated outputs
+- Liability and insurance considerations
+- Patient consent for AI-assisted diagnosis
+
+**Performance Monitoring**: If ever deployed in a clinical setting, the following should be tracked:
+
+- Diagnostic accuracy compared to ground truth
+- False positive/negative rates by subpopulation
+- Physician override frequency and reasons
+- Patient outcomes correlation
+- System uptime and reliability
+- Image quality rejection rates
 
 ---
 

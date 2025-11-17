@@ -19,6 +19,21 @@ from src.data.datamodule import build_dataloaders
 
 
 class FocalLoss(nn.Module):
+    """Focal Loss for addressing class imbalance.
+    
+    Focal Loss down-weights easy examples and focuses training on hard negatives.
+    Particularly useful for medical imaging where class imbalance is common.
+    
+    Reference: Lin et al. "Focal Loss for Dense Object Detection" (2017)
+    
+    Args:
+        gamma: Focusing parameter (default: 1.5). Higher values increase focus on hard examples.
+        weight: Per-class weights for handling imbalance (optional)
+    
+    Example:
+        >>> loss_fn = FocalLoss(gamma=2.0, weight=torch.tensor([1.0, 2.0]))
+        >>> loss = loss_fn(logits, targets)
+    """
     def __init__(self, gamma: float = 1.5, weight=None):
         super().__init__()
         self.gamma = gamma
@@ -33,7 +48,18 @@ class FocalLoss(nn.Module):
 
 
 def set_seed(seed: int = 42):
-    """设置所有随机种子以确保可复现性"""
+    """Set all random seeds for reproducibility.
+    
+    Ensures deterministic behavior across random, numpy, and PyTorch operations.
+    This is critical for reproducible experiments and debugging.
+    
+    Args:
+        seed: Integer seed value (default: 42)
+    
+    Note:
+        Sets cudnn.deterministic=True which may reduce performance slightly
+        but ensures reproducible results on GPU.
+    """
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
@@ -43,6 +69,19 @@ def set_seed(seed: int = 42):
 
 
 def save_checkpoint(state: Dict, path: Path):
+    """Save model checkpoint to disk.
+    
+    Creates parent directories if they don't exist and saves the checkpoint
+    dictionary containing model weights, optimizer state, config, etc.
+    
+    Args:
+        state: Dictionary containing checkpoint data (model, optimizer, config, classes, etc.)
+        path: Target file path for saving the checkpoint
+    
+    Example:
+        >>> state = {'model': model.state_dict(), 'epoch': 10, 'config': cfg}
+        >>> save_checkpoint(state, Path('runs/experiment/best.pt'))
+    """
     path.parent.mkdir(parents=True, exist_ok=True)
     torch.save(state, path)
 
