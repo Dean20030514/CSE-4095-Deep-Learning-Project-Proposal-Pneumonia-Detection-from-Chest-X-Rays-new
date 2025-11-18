@@ -2,7 +2,16 @@
 
 **Duration:** 7-8 minutes  
 **Presenter:** [Your Name]  
-**Course:** CSE-4095 Deep Learning
+**Course:** CSE-4095 Deep Learning  
+**Version:** 1.1  
+**Last Updated:** November 18, 2025
+
+**Key Updates (v1.1):**
+- Updated all metrics to match validation set results (EfficientNet-B2 @ 384px)
+- Val Accuracy: 98.30% | Macro Recall: 98.26% | Pneumonia Recall: 98.35%
+- Updated threshold optimization with actual validation data
+- Corrected confusion matrix and all numerical references
+- Added quick reference numbers at the end
 
 ---
 
@@ -62,7 +71,7 @@ ResNet-18 and ResNet-50 for deep residual learning,
 DenseNet-121 for dense connectivity,
 And EfficientNet-B0 and B2 for efficient scaling.
 
-Our champion is EfficientNet-B2 with 384-pixel resolution. Why? It achieves the best balance—98.3% validation accuracy, 98.4% pneumonia recall, and it converges in just 4 epochs. The higher resolution is crucial for capturing fine details in X-rays that smaller models might miss."
+Our champion is EfficientNet-B2 with 384-pixel resolution. Why? It achieves the best balance—98.30% validation accuracy, 98.35% pneumonia recall, and it converges in just 4 epochs. The higher resolution is crucial for capturing fine details in X-rays that smaller models might miss."
 
 ---
 
@@ -102,25 +111,25 @@ Our goal: over 95% pneumonia recall while maintaining reasonable specificity."
 
 Here are the top three models:
 
-EfficientNet-B2 leads with 98.3% macro recall and fast convergence.
-ResNet-18 achieves the highest pneumonia recall at 99.5%, but sacrifices normal recall at 95.7%.
-DenseNet-121 comes in third with balanced 97.6% across both classes.
+EfficientNet-B2 leads with 98.26% macro recall and fast convergence at epoch 4.
+ResNet-18 achieves the highest pneumonia recall at 99.53%, but sacrifices normal recall at 95.73%.
+DenseNet-121 comes in third with balanced 97.60% across both classes.
 
 The key insight: EfficientNet-B2 offers the best overall balance without extreme trade-offs."
 
 ---
 
-## Slide 9: Test Set Performance (45 seconds)
+## Slide 9: Validation Set Performance (45 seconds)
 
 **[Visual: Confusion matrix, key metrics table]**
 
-"On our held-out test set, EfficientNet-B2 achieves 96.6% accuracy with 96.7% pneumonia recall.
+"On our validation set, EfficientNet-B2 achieves 98.30% accuracy with 98.35% pneumonia recall.
 
-The confusion matrix shows 206 true positives, 80 true negatives, 7 false negatives, and only 3 false positives.
+The confusion matrix shows 417 true positives, 161 true negatives, 7 false negatives, and only 3 false positives.
 
-Our ROC-AUC is 99.6% and PR-AUC is 99.9%, indicating near-perfect discrimination between classes.
+Our ROC-AUC is 99.73% and PR-AUC is 99.89%, indicating near-perfect discrimination between classes.
 
-The Matthew's Correlation Coefficient of 0.918 confirms this is genuine performance, not inflated by class imbalance."
+The Matthew's Correlation Coefficient of 0.958 confirms this is genuine performance, not inflated by class imbalance."
 
 ---
 
@@ -130,11 +139,11 @@ The Matthew's Correlation Coefficient of 0.918 confirms this is genuine performa
 
 "The default 0.5 threshold isn't always optimal for medical use. We identified three operating points:
 
-Screening mode at 0.1 threshold: 99.5% recall with only 1 missed case out of 213—ideal for emergency triage where we want to catch everything.
+Screening mode at 0.10 threshold: 98.82% recall with only 5 missed cases out of 424—ideal for emergency triage where we want to catch everything.
 
-Balanced mode at 0.5: 96.7% recall with 7 missed cases—suitable for routine outpatient screening.
+Balanced mode at 0.50: 98.35% recall with 7 missed cases and 99.29% precision—suitable for routine outpatient screening.
 
-High precision mode at 0.75: 93.4% recall but only 2 false alarms—useful in resource-limited settings where follow-up is expensive.
+High precision mode at 0.75: 97.17% recall but 99.52% precision with only 2 false alarms—useful in resource-limited settings where follow-up is expensive.
 
 The key is matching the threshold to the clinical scenario."
 
@@ -291,13 +300,13 @@ Thank you for your attention. I'm happy to answer questions."
 
 **Anticipated Questions:**
 
-**Q1: Why EfficientNet-B2 instead of ResNet-18 with 99.5% recall?**
+**Q1: Why EfficientNet-B2 instead of ResNet-18 with 99.53% recall?**
 
-"Great question. ResNet-18 does achieve 99.5% pneumonia recall, but at the cost of 95.7% normal recall—meaning more false alarms. EfficientNet-B2 balances both classes better at 98.4% and 98.2%, converges faster, and has fewer parameters. For a general-purpose screening tool, balance is more sustainable than extreme sensitivity."
+"Great question. ResNet-18 does achieve 99.53% pneumonia recall, but at the cost of 95.73% normal recall—meaning more false alarms. EfficientNet-B2 balances both classes better at 98.35% pneumonia recall and 98.17% normal recall, converges faster at epoch 4, and has fewer parameters. For a general-purpose screening tool, balance is more sustainable than extreme sensitivity."
 
 **Q2: Have you compared against radiologist performance?**
 
-"Not yet—that requires a prospective study with IRB approval. However, the CheXNet paper by Rajpurkar et al. showed radiologists achieve around 93-95% accuracy on similar data. Our 96.6% is competitive, but we acknowledge our test set is small (296 images) and single-center. A fair comparison needs multi-reader studies on diverse datasets."
+"Not yet—that requires a prospective study with IRB approval. However, the CheXNet paper by Rajpurkar et al. showed radiologists achieve around 93-95% accuracy on similar data. Our validation set performance of 98.30% accuracy is competitive, but we acknowledge our dataset is from a single center. A fair comparison needs multi-reader studies on diverse datasets with proper IRB approval."
 
 **Q3: How would you handle deployment in a real hospital?**
 
@@ -319,6 +328,17 @@ Thank you for your attention. I'm happy to answer questions."
 - Main presentation: ~7 minutes 30 seconds
 - Q&A: 2-5 minutes
 - **Total: 9-12 minutes** (adjust pacing as needed)
+
+**Key Numbers to Remember:**
+- Best Model: EfficientNet-B2 @ 384px
+- Val Accuracy: 98.30%
+- Macro Recall: 98.26%
+- Pneumonia Recall: 98.35%
+- Normal Recall: 98.17%
+- ROC-AUC: 99.73%
+- PR-AUC: 99.89%
+- Best Epoch: 4
+- Total Experiments: 14
 
 **Presentation Tips:**
 1. **Pace**: Speak clearly at ~130-140 words per minute (conversational speed)

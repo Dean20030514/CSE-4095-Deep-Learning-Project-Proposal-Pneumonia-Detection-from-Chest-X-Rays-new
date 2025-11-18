@@ -177,24 +177,24 @@
 
 ---
 
-### Slide 9: Test Set Performance
+### Slide 9: Validation Set Performance
 **Layout:** Large Metrics + Confusion Matrix  
 **Content:**
-- **Title:** Champion Model: EfficientNet-B2 Test Results
+- **Title:** Champion Model: EfficientNet-B2 Validation Results
 - **Key Metrics (Large Font):**
-  - Accuracy: **96.62%**
-  - Pneumonia Recall: **96.71%** (206/213 caught)
-  - Normal Recall: **96.39%** (80/83 identified)
-  - ROC-AUC: **99.64%**
-  - PR-AUC: **99.86%**
-  - MCC: **0.918**
+  - Accuracy: **98.30%**
+  - Pneumonia Recall: **98.35%** (417/424 caught)
+  - Normal Recall: **98.17%** (161/164 identified)
+  - ROC-AUC: **99.73%**
+  - PR-AUC: **99.89%**
+  - MCC: **0.958**
 - **Confusion Matrix:**
   ```
               Predicted
           Normal  Pneumonia
   Actual
-  Normal     80       3  (FP)
-  Pneumonia   7     206  (TP)
+  Normal    161       3  (FP)
+  Pneumonia   7     417  (TP)
              (FN)
   ```
 - **Visual:** Color-coded matrix (green=correct, red=errors)
@@ -211,20 +211,23 @@
 
   **Scenario 1: Screening Mode (Threshold=0.10)**
   - 🎯 Goal: Catch everything
-  - Recall: **99.53%** (1 miss / 213)
-  - FP: 6 (acceptable in ER triage)
+  - Recall: **98.82%** (5 miss / 424)
+  - FP: 13 (acceptable in ER triage)
+  - Precision: **96.99%**
   - Use Case: Emergency room, mass screening
 
   **Scenario 2: Balanced Mode (Threshold=0.50)**
   - 🎯 Goal: Reasonable trade-off
-  - Recall: **96.71%** (7 miss / 213)
+  - Recall: **98.35%** (7 miss / 424)
   - FP: 3 (minimal workload)
+  - Precision: **99.29%**
   - Use Case: Routine outpatient screening
 
   **Scenario 3: High Precision Mode (Threshold=0.75)**
   - 🎯 Goal: Minimize false alarms
-  - Recall: **93.43%** (14 miss / 213)
+  - Recall: **97.17%** (12 miss / 424)
   - FP: 2 (very low)
+  - Precision: **99.52%**
   - Use Case: Resource-limited settings
 
 - **Visual:** Three icons (ER, clinic, rural hospital) linked to thresholds
@@ -570,7 +573,14 @@
 
 ---
 
-**Version:** 1.0  
-**Last Updated:** November 16, 2025  
+**Version:** 1.1  
+**Last Updated:** November 18, 2025  
 **Format:** PowerPoint (.pptx) or Google Slides  
 **Estimated Prep Time:** 4-6 hours (design + rehearsal)
+
+**Key Updates (v1.1):**
+- Updated all metrics to match validation set results
+- EfficientNet-B2: 98.30% accuracy, 98.26% macro recall
+- Updated threshold optimization with actual validation data
+- Corrected confusion matrix (161 TN, 3 FP, 7 FN, 417 TP)
+- ROC-AUC: 99.73%, PR-AUC: 99.89%
