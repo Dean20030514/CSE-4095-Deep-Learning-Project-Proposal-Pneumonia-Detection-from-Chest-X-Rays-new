@@ -4,7 +4,7 @@
 
 **Model Name**: Pneumonia-Detection-EfficientNet-B2  
 **Version**: 2.0 (EfficientNet-B2 @ 384px - Architecture Comparison Winner)  
-**Date**: 2025-11-16  
+**Date**: 2025-11-18  
 **Developers**: CSE-4095 Deep Learning Team  
 **Course**: CSE-4095 Deep Learning  
 

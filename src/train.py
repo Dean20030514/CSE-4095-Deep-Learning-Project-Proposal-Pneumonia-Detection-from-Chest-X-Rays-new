@@ -16,6 +16,7 @@ import yaml
 from src.models.factory import build_model
 from src.utils.device import get_device
 from src.data.datamodule import build_dataloaders
+from src.utils.config_validator import ConfigValidator
 
 
 class FocalLoss(nn.Module):
@@ -87,25 +88,65 @@ def save_checkpoint(state: Dict, path: Path):
 
 
 def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--config', required=True)
-    parser.add_argument('--data_root', default='data')
-    parser.add_argument('--save_dir', default='runs')
-    parser.add_argument('--save_best_by', default='macro_recall')
+    parser = argparse.ArgumentParser(description='Training script for pneumonia detection')
+    parser.add_argument('--config', required=True, help='Path to training config YAML file')
+    parser.add_argument('--data_root', default='data', help='Root directory of dataset')
+    parser.add_argument('--save_dir', default='runs', help='Directory to save checkpoints')
+    parser.add_argument('--save_best_by', default='macro_recall', 
+                       choices=['accuracy', 'macro_recall', 'macro_f1', 'pneumonia_recall'],
+                       help='Metric to select best model')
+    parser.add_argument('--resume', type=str, default=None, help='Resume from checkpoint')
+    parser.add_argument('--validate_config', action='store_true', help='Validate config and exit')
+    
     # 可选的命令行覆盖参数
     parser.add_argument('--epochs', type=int, default=None, help='Override epochs from config')
     parser.add_argument('--batch_size', type=int, default=None, help='Override batch_size from config')
     parser.add_argument('--lr', type=float, default=None, help='Override learning rate from config')
-    parser.add_argument('--augment_level', type=str, default=None, choices=['light', 'medium', 'heavy', 'aggressive'], help='Override augmentation level from config')
-    parser.add_argument('--model', type=str, default=None, help='Override model architecture from config (resnet18, resnet50, efficientnet_b0, efficientnet_b2, densenet121)')
+    parser.add_argument('--augment_level', type=str, default=None, 
+                       choices=['light', 'medium', 'heavy', 'aggressive'], 
+                       help='Override augmentation level from config')
+    parser.add_argument('--model', type=str, default=None, 
+                       help='Override model architecture from config')
     args = parser.parse_args()
 
+    # 加载配置
+    print(f"\n[CONFIG] Loading configuration from: {args.config}")
     with open(args.config, 'r', encoding='utf-8') as f:
         cfg = yaml.safe_load(f)
+    
+    # 验证配置
+    try:
+        ConfigValidator.validate(cfg)
+        if args.validate_config:
+            print("[OK] Configuration is valid!")
+            return
+    except ValueError as e:
+        print(f"[ERROR] Configuration validation failed:")
+        print(str(e))
+        if args.validate_config:
+            return
+        print("\n[WARNING] Continuing with potentially invalid configuration...")
+        print("  Use --validate_config to only validate without training")
     
     # 设置随机种子
     seed = int(cfg.get('seed', 42))
     set_seed(seed)
+    
+    # ========================================
+    # 性能优化设置 (不影响精度)
+    # ========================================
+    # 1. 启用 cuDNN 自动调优 (首次训练会慢一些,之后更快)
+    torch.backends.cudnn.benchmark = True
+    
+    # 2. 启用 TF32 精度 (RTX 30/40/50系列支持,加速矩阵运算)
+    # 使用 PyTorch 2.9+ 推荐的新 API
+    torch.backends.cuda.matmul.fp32_precision = 'tf32'
+    torch.backends.cudnn.conv.fp32_precision = 'tf32'
+    
+    print("\n[Performance Optimizations Enabled]")
+    print(f"  - cuDNN benchmark: {torch.backends.cudnn.benchmark}")
+    print(f"  - TF32 precision: {torch.backends.cuda.matmul.fp32_precision}")
+    print(f"  - Device: {torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'CPU'}")
 
     # 命令行参数优先于配置文件
     model_name = args.model if args.model is not None else cfg.get('model', 'resnet18')
@@ -143,6 +184,10 @@ def main():
 
     device = get_device()
     model = model.to(device)
+    
+    # 优化 3: 使用 channels_last 内存格式 (更高效的内存访问模式)
+    model = model.to(memory_format=torch.channels_last)
+    print(f"  - Memory format: channels_last")
 
     # class weights from train loader counts
     counts = torch.zeros(num_classes)
@@ -158,20 +203,53 @@ def main():
 
     optimizer = AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)
     scheduler = CosineAnnealingLR(optimizer, T_max=epochs)
-    scaler = GradScaler('cuda', enabled=use_amp)
+    
+    # AMP只在GPU模式下启用，CPU模式自动禁用以避免警告
+    device_type = 'cuda' if torch.cuda.is_available() else 'cpu'
+    use_amp_actual = use_amp and torch.cuda.is_available()  # CPU强制禁用AMP
+    scaler = GradScaler(device_type, enabled=use_amp_actual)
 
     best_score = -1.0
+    start_epoch = 1
+    # 支持两种配置写法:
+    # 1. 新格式: early_stopping: { patience: 20 }
+    # 2. 旧格式: patience: 20
     patience_cfg = cfg.get('early_stopping', {}) or {}
-    patience = int(patience_cfg.get('patience', 0))
+    patience = int(patience_cfg.get('patience', cfg.get('patience', 0)))
     no_improve = 0
-    save_dir = Path(args.save_dir)
-    save_dir.mkdir(parents=True, exist_ok=True)
-    best_ckpt = save_dir / 'best.pt'
-    last_ckpt = save_dir / 'last.pt'
     
-    # 初始化 CSV 日志
-    log_cfg = cfg.get('log', {})
-    csv_path = save_dir / log_cfg.get('csv', 'metrics.csv')
+    # ========================================
+    # Checkpoint恢复功能
+    # ========================================
+    if args.resume:
+        print(f"\n[RESUME] Loading checkpoint from: {args.resume}")
+        try:
+            resume_ckpt = torch.load(args.resume, map_location='cpu', weights_only=False)
+            model.load_state_dict(resume_ckpt['model'])
+            optimizer.load_state_dict(resume_ckpt.get('optimizer', optimizer.state_dict()))
+            scheduler.load_state_dict(resume_ckpt.get('scheduler', scheduler.state_dict()))
+            start_epoch = resume_ckpt.get('epoch', 0) + 1
+            best_score = resume_ckpt.get('best_score', -1.0)
+            print(f"[RESUME] Resumed from epoch {start_epoch-1}, best_score={best_score:.4f}")
+        except Exception as e:
+            print(f"[WARNING] Failed to load checkpoint: {e}")
+            print("[WARNING] Starting training from scratch...")
+    
+    # 优先使用配置文件中的 output_dir,否则使用命令行参数的 save_dir
+    output_dir = cfg.get('output_dir', args.save_dir)
+    save_dir = Path(output_dir)
+    save_dir.mkdir(parents=True, exist_ok=True)
+    best_ckpt = save_dir / 'best_model.pt'
+    last_ckpt = save_dir / 'last_model.pt'
+    
+    # 优化 4: 验证频率配置 (减少验证次数以加速训练)
+    val_interval = int(cfg.get('val_interval', 1))  # 每N个epoch验证一次,默认每次都验证
+    print(f"  - Validation interval: every {val_interval} epoch(s)")
+    
+    # 初始化 CSV 日志和训练日志
+    csv_path = save_dir / 'metrics_history.csv'
+    train_log_path = save_dir / 'train.log'
+    
     csv_file = open(csv_path, 'w', newline='', encoding='utf-8')
     csv_writer = csv.DictWriter(csv_file, fieldnames=[
         'epoch', 'train_loss', 'val_acc', 'val_loss',
@@ -181,23 +259,54 @@ def main():
     csv_writer.writeheader()
     csv_file.flush()
     
-    print(f"Training config: {model_name} @ {img_size}px, {epochs} epochs, lr={lr}, loss={loss_name}")
-    print(f"Augmentation: {'albumentations' if use_albumentations else f'torchvision ({augment_level})'}")
-    print(f"Using device: {device}, AMP: {use_amp}, Seed: {seed}")
-    print(f"Pneumonia class index: {pneumonia_idx}")
+    # 保存配置文件副本到输出目录
+    import shutil
+    config_copy_path = save_dir / 'config.yaml'
+    shutil.copy(args.config, config_copy_path)
+    
+    # 设置训练日志
+    log_file = open(train_log_path, 'w', encoding='utf-8')
+    
+    def log_print(msg):
+        """同时输出到控制台和日志文件"""
+        try:
+            print(msg)
+        except UnicodeEncodeError:
+            # Windows gbk 编码无法处理 emoji，使用 ascii 替代并忽略特殊字符
+            print(msg.encode('ascii', errors='ignore').decode('ascii'))
+        log_file.write(msg + '\n')
+        log_file.flush()
+    
+    log_print(f"\n{'='*60}")
+    log_print(f"Experiment: {save_dir.name}")
+    log_print(f"Output directory: {save_dir}")
+    log_print(f"{'='*60}")
+    log_print(f"Training config: {model_name} @ {img_size}px, {epochs} epochs, lr={lr}, loss={loss_name}")
+    log_print(f"Augmentation: {'albumentations' if use_albumentations else f'torchvision ({augment_level})'}")
+    amp_status = f"{use_amp_actual}" + (" (CPU: disabled)" if use_amp and not use_amp_actual else "")
+    log_print(f"Using device: {device}, AMP: {amp_status}, Seed: {seed}")
+    log_print(f"Pneumonia class index: {pneumonia_idx}")
+    if args.resume:
+        log_print(f"Resume: Starting from epoch {start_epoch}")
+    log_print(f"{'='*60}\n")
 
-    for epoch in range(1, epochs + 1):
+    # 记录训练开始时间
+    import time
+    training_start_time = time.time()
+
+    # 训练循环
+    for epoch in range(start_epoch, epochs + 1):
         model.train()
         running_loss = 0.0
         train_samples = 0
         
         for images, targets in tqdm(loaders['train'], desc=f"Train {epoch}/{epochs}"):
-            images = images.to(device)
+            images = images.to(device, memory_format=torch.channels_last)
             targets = targets.to(device)
             
             optimizer.zero_grad(set_to_none=True)
             
-            with autocast('cuda', enabled=use_amp):
+            with autocast(device_type, enabled=use_amp_actual):
                 logits = model(images)
                 loss = loss_fn(logits, targets)
             
@@ -212,6 +321,14 @@ def main():
         scheduler.step()
         current_lr = optimizer.param_groups[0]['lr']
 
+        # 根据 val_interval 决定是否进行验证
+        should_validate = (epoch % val_interval == 0) or (epoch == epochs)
+        
+        if not should_validate:
+            # 跳过验证,只打印训练损失
+            log_print(f"Epoch {epoch}/{epochs}: Train Loss: {train_loss:.4f} | LR: {current_lr:.6f} (validation skipped)")
+            continue
+        
         # Validation loop: compute detailed metrics including pneumonia recall
         model.eval()
         all_preds = []
@@ -221,10 +338,10 @@ def main():
         
         with torch.no_grad():
             for images, targets in tqdm(loaders['val'], desc=f"Val {epoch}/{epochs}"):
-                images = images.to(device)
+                images = images.to(device, memory_format=torch.channels_last)
                 targets = targets.to(device)
                 
-                with autocast('cuda', enabled=use_amp):
+                with autocast(device_type, enabled=use_amp_actual):
                     logits = model(images)
                     loss = loss_fn(logits, targets)
                 
@@ -271,11 +388,11 @@ def main():
             score = val_acc
         
         # 打印指标
-        print(f"Epoch {epoch}/{epochs}:")
-        print(f"  Train Loss: {train_loss:.4f} | Val Loss: {val_loss:.4f} | Val Acc: {val_acc:.4f}")
-        print(f"  Pneumonia - Recall: {pneumonia_recall:.4f}, Precision: {pneumonia_precision:.4f}, F1: {pneumonia_f1:.4f}")
-        print(f"  Normal Recall: {normal_recall:.4f} | Macro Recall: {macro_recall:.4f} | Macro F1: {macro_f1:.4f}")
-        print(f"  LR: {current_lr:.6f} | Best {args.save_best_by}: {best_score:.4f}")
+        log_print(f"Epoch {epoch}/{epochs}:")
+        log_print(f"  Train Loss: {train_loss:.4f} | Val Loss: {val_loss:.4f} | Val Acc: {val_acc:.4f}")
+        log_print(f"  Pneumonia - Recall: {pneumonia_recall:.4f}, Precision: {pneumonia_precision:.4f}, F1: {pneumonia_f1:.4f}")
+        log_print(f"  Normal Recall: {normal_recall:.4f} | Macro Recall: {macro_recall:.4f} | Macro F1: {macro_f1:.4f}")
+        log_print(f"  LR: {current_lr:.6f} | Best {args.save_best_by}: {best_score:.4f}")
         
         # 写入 CSV
         csv_writer.writerow({
@@ -314,20 +431,48 @@ def main():
         if score > best_score:
             best_score = score
             save_checkpoint(ckpt_state, best_ckpt)
-            print(f"  [BEST] Saved best checkpoint: {best_ckpt}")
+            log_print(f"  [BEST] Saved best checkpoint: {best_ckpt}")
             no_improve = 0
         else:
             no_improve += 1
             if patience > 0 and no_improve >= patience:
-                print(f"\nEarly stopping at epoch {epoch} (no improvement in {no_improve} epochs)")
+                log_print(f"\nEarly stopping at epoch {epoch} (no improvement in {no_improve} epochs)")
                 break
     
+    # 训练完成,打印最终总结
+    import time
+    training_end_time = time.time()
+    
+    log_print(f"\n{'='*60}")
+    log_print(f"✅ Training completed!")
+    log_print(f"{'='*60}")
+    log_print(f"Best {args.save_best_by}: {best_score:.4f}")
+    log_print(f"Total epochs trained: {epoch}")
+    if 'training_start_time' in locals():
+        total_time = training_end_time - training_start_time
+        log_print(f"Total training time: {total_time/3600:.2f} hours")
+    
+    log_print(f"\n📁 Output files:")
+    log_print(f"  - Best model: {best_ckpt}")
+    log_print(f"  - Last model: {last_ckpt}")
+    log_print(f"  - Metrics CSV: {csv_path}")
+    log_print(f"  - Training log: {train_log_path}")
+    log_print(f"  - Config copy: {config_copy_path}")
+    
+    log_print(f"\n🎯 Next steps:")
+    log_print(f"  1. Evaluate: python src/eval.py --ckpt {best_ckpt} --data_root {args.data_root} --split test")
+    log_print(f"  2. Analyze: python scripts/error_analysis.py --ckpt {best_ckpt}")
+    log_print(f"  3. Demo: streamlit run src/app/streamlit_app.py")
+    log_print(f"{'='*60}")
+    
+    # 关闭文件
     csv_file.close()
-    print(f"\n{'='*60}")
-    print(f"Training completed! Best {args.save_best_by} = {best_score:.4f}")
-    print(f"Checkpoints saved to: {save_dir}")
-    print(f"Metrics log: {csv_path}")
-    print(f"{'='*60}")
+    log_file.close()
+    
+    try:
+        print(f"\n✅ Training completed successfully!")
+    except UnicodeEncodeError:
+        print(f"\n[OK] Training completed successfully!")
 
 
 if __name__ == '__main__':

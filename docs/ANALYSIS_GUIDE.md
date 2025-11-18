@@ -312,4 +312,4 @@ pip install seaborn matplotlib scikit-learn pandas tqdm
 
 ---
 
-For detailed tool implementation, see `CODE_OPTIMIZATION_SUMMARY.md`.
+For detailed tool usage, refer to the scripts in `scripts/` directory and their inline documentation.

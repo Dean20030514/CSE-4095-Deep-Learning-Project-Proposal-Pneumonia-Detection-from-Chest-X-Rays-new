@@ -85,7 +85,7 @@ We created a **clean, patient-level split** with the following improvements:
 - Held-out test set (5% for final evaluation)
 - Stratified class distribution
 
-*Detailed methodology: See `OPTIMAL_DATASET_REPORT.md`*
+*Note: Dataset was created using `scripts/create_optimal_dataset.py` with patient-level separation and stratification*
 
 ---
 

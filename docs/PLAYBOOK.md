@@ -290,7 +290,6 @@ python -m pip install -U pip
 python -m pip install -r requirements.txt
 
 # 3) Verify CUDA & dependencies
-python scripts/check_cuda.py
 python scripts/verify_environment.py
 
 # 4) Verify dataset integrity
@@ -304,63 +303,35 @@ streamlit run src/app/streamlit_app.py -- --demo_mode
 
 ---
 
-## 📦 Ready‑to‑Use Config Templates (`src/configs/`)
+## 📦 Available Config Templates (`src/configs/`)
 
-### `colab_friendly.yaml` — fastest sanity check
+### Recommended Configurations
 
-```yaml
-model: resnet18
-img_size: 224
-batch_size: 16
-epochs: 10
-optimizer: adamw
-lr: 1e-3
-weight_decay: 1e-4
-loss: weighted_ce
-sampler: weighted_random
-amp: true
-early_stopping: {metric: pneumonia_recall, patience: 3}
-aug: {flip: 0.5, rotate: 10}
+**Quick Test:**
+```bash
+python src/train.py --config src/configs/quick_test_resnet18.yaml
 ```
+- 3 epochs, ~10 minutes
+- ResNet18 @ 224px
+- Purpose: Environment verification
 
-### `balanced_training.yaml` — recommended baseline (Track‑A)
-
-```yaml
-model: efficientnet_b0
-img_size: 384
-batch_size: 16
-epochs: 25
-optimizer: adamw
-lr: 3e-4
-weight_decay: 1e-4
-loss: weighted_ce  # switch to focal(gamma: 1.5) if minority recall stalls
-scheduler: cosine
-amp: true
-early_stopping: {metric: pneumonia_recall, patience: 5}
-aug: {flip: 0.5, rotate: 10, brightness_contrast: 0.2}
-threshold_modes: {max_recall: true, balanced: true}
-log: {run_name: balanced_training, csv: runs/metrics.csv}
+**Best Performance:**
+```bash
+python src/train.py --config src/configs/model_efficientnet_b2.yaml
 ```
+- EfficientNet-B2 @ 384px
+- 98.26% macro recall
+- Purpose: Best overall balance
 
-### `full_power.yaml` — stretch (Track‑B)
-
-```yaml
-model: resnet50
-img_size: 512
-batch_size: 16
-epochs: 40
-optimizer: adamw
-lr: 2e-4
-weight_decay: 2e-4
-loss: focal
-focal: {gamma: 1.5}
-scheduler: cosine
-amp: true
-optuna: {trials: 30, search_space: [lr, weight_decay, dropout, img_size]}
-early_stopping: {metric: pneumonia_recall, patience: 7}
-external_eval: {dataset: chexpert_small, enabled: true}
-export: {onnx: true}
+**Production Model:**
+```bash
+python src/train.py --config src/configs/final_model.yaml
 ```
+- EfficientNet-B2 @ 512px
+- 100 epochs
+- Purpose: Highest quality for deployment
+
+See `src/configs/README.md` for complete configuration documentation.
 
 ---
 
@@ -372,11 +343,9 @@ The following scripts are already implemented and ready to use:
 
 **`scripts/verify_environment.py`** - Comprehensive environment validation including Python version, PyTorch installation, CUDA availability, and all required dependencies.
 
-**`scripts/check_cuda.py`** - Quick CUDA availability check with GPU device information and PyTorch CUDA version.
-
 **`scripts/verify_dataset_integrity.py`** - Validates dataset structure, counts images per class/split, and checks for common issues.
 
-**`scripts/arrange_datasets.py`** - Helper utility for organizing and restructuring dataset folders into the required ImageFolder format.
+**`scripts/create_optimal_dataset.py`** - Creates optimized dataset with patient-level separation and stratification.
 
 **`scripts/download_sample_data.py`** - Downloads sample chest X-ray data for quick testing (when available).
 
@@ -385,14 +354,14 @@ The following scripts are already implemented and ready to use:
 ### Usage Examples
 
 ```bash
-# Check environment setup
+# Check environment setup (includes CUDA check)
 python scripts/verify_environment.py
-
-# Verify CUDA and GPU
-python scripts/check_cuda.py
 
 # Validate your dataset
 python scripts/verify_dataset_integrity.py
+
+# Create optimized dataset
+python scripts/create_optimal_dataset.py
 
 # Generate presentation figures
 python scripts/demo_presentation.py

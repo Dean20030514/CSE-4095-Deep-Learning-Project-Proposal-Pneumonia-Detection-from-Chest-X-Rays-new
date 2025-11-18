@@ -170,7 +170,7 @@ This project demonstrates a **rigorous, reproducible, and ethically-grounded app
 | **[PRESENTATION_SCRIPT.md](PRESENTATION_SCRIPT.md)** | 7-8 min presentation script |
 | **[EXPERIMENT_SUMMARY.md](reports/comprehensive/EXPERIMENT_SUMMARY.md)** | Full experiment comparison |
 | **[best_model_test.json](reports/best_model_test.json)** | Detailed test set results |
-| **[QUICK_START_GUIDE.md](QUICK_START_GUIDE.md)** | Reproduction instructions |
+| **[TRAINING_GUIDE.md](../TRAINING_GUIDE.md)** | Complete training and reproduction guide |
 
 ---
 

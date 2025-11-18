@@ -1,10 +1,10 @@
-# ⭐ Final Model: EfficientNet-B2 @ 512px - Production ready
+# Light Augmentation - Minimal transformation
 # Auto-generated configuration file
 
 pretrained: true
 data_root: data
-img_size: 512
-batch_size: 16
+img_size: 384
+batch_size: 24
 num_workers: 12
 epochs: 100
 lr: 0.0005
@@ -15,15 +15,15 @@ loss: focal
 focal_gamma: 1.5
 use_weighted_sampler: true
 augmentation:
-  horizontal_flip: 0.5
-  rotation_degrees: 10
-  brightness: 0.1
-  contrast: 0.1
+  horizontal_flip: 0.3
+  rotation_degrees: 5
+  brightness: 0.05
+  contrast: 0.05
 optimizer: adamw
 scheduler: cosine
-warmup_epochs: 3
+warmup_epochs: 2
 amp: true
 save_best_only: false
 seed: 42
 model: efficientnet_b2
-output_dir: runs/final_efficientnet_b2_512
+output_dir: runs/aug_light

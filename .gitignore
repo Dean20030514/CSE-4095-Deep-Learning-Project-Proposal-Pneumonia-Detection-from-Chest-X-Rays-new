@@ -4,28 +4,112 @@ __pycache__/
 *.egg-info/
 *.pyo
 *.pyd
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+*.egg
+MANIFEST
 
 # Environments
 .venv/
 venv/
 .env
+.env.local
+ENV/
+env.bak/
+venv.bak/
+*.conda
 
-# Jupyter/VSCode
+# IDE
 .ipynb_checkpoints/
 .vscode/
+.idea/
+*.swp
+*.swo
+*~
+.spyderproject
+.spyproject
+.ropeproject
 
 # OS
 .DS_Store
 Thumbs.db
+desktop.ini
+*.bak
 
-# Data and artifacts (keep raw data out of Git)
+# Data and model artifacts (do not commit to Git)
 /data/
 /runs/
 /checkpoints/
-/reports/figs/
+/exported_models/
 **/*.pt
+**/*.pth
 **/*.onnx
+**/*.ckpt
+**/*.pkl
+**/*.pickle
 
-# Logs
-logs/
+# Reports and logs
+/logs/
 *.log
+/reports/figs/
+/reports/*.png
+/reports/*.jpg
+/reports/*.jpeg
+
+# Testing and coverage
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.coverage.*
+coverage.xml
+*.cover
+.hypothesis/
+pytest_debug.log
+
+# Type checking
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pyre/
+.pytype/
+
+# Jupyter
+*.ipynb_checkpoints
+.ipynb_checkpoints/
+
+# Documentation builds
+docs/_build/
+site/
+
+# Temporary files
+*.tmp
+*.temp
+~$*
+
+# MLflow
+mlruns/
+mlartifacts/
+
+# Weights & Biases
+wandb/
+
+# DVC
+.dvc/
+*.dvc
+
+# Profiling
+*.prof
+*.lprof

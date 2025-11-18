@@ -1,0 +1,174 @@
+# Python项目配置文件
+
+[build-system]
+requires = ["setuptools>=45", "wheel", "setuptools_scm>=6.2"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pneumonia-detection"
+version = "2.0.0"
+description = "Deep Learning-based Pneumonia Detection from Chest X-Rays"
+readme = "README.md"
+requires-python = ">=3.8"
+license = {text = "MIT"}
+authors = [
+    {name = "CSE-4095 Deep Learning Team", email = "pneumonia@example.com"}
+]
+keywords = [
+    "deep-learning",
+    "medical-imaging",
+    "pneumonia-detection",
+    "computer-vision",
+    "chest-x-ray"
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Education",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Scientific/Engineering :: Medical Science Apps.",
+]
+
+dependencies = [
+    "torch>=2.0.0,<2.2.0",
+    "torchvision>=0.15.0,<0.17.0",
+    "numpy>=1.23.0,<1.27.0",
+    "pandas>=2.0.0,<2.2.0",
+    "scikit-learn>=1.3.0,<1.5.0",
+    "matplotlib>=3.7.0,<3.9.0",
+    "pyyaml>=6.0,<7.0",
+    "tqdm>=4.65.0,<4.67.0",
+    "streamlit>=1.28.0,<1.32.0",
+    "albumentations>=1.3.0,<1.4.0",
+    "opencv-python-headless>=4.8.0,<4.9.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-cov>=4.1.0",
+    "black>=23.9.0",
+    "isort>=5.12.0",
+    "flake8>=6.1.0",
+    "mypy>=1.5.0",
+    "pre-commit>=3.4.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/username/pneumonia-detection"
+Documentation = "https://github.com/username/pneumonia-detection/docs"
+Repository = "https://github.com/username/pneumonia-detection"
+"Bug Tracker" = "https://github.com/username/pneumonia-detection/issues"
+
+# ========================================
+# Black配置
+# ========================================
+[tool.black]
+line-length = 100
+target-version = ['py38', 'py39', 'py310', 'py311']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+    \.git
+  | \.venv
+  | \.eggs
+  | \.tox
+  | build
+  | dist
+  | __pycache__
+  | \.ipynb_checkpoints
+)/
+'''
+
+# ========================================
+# isort配置
+# ========================================
+[tool.isort]
+profile = "black"
+line_length = 100
+multi_line_output = 3
+include_trailing_comma = true
+force_grid_wrap = 0
+use_parentheses = true
+ensure_newline_before_comments = true
+skip_gitignore = true
+skip = [".venv", "build", "dist", "__pycache__"]
+
+# ========================================
+# mypy配置
+# ========================================
+[tool.mypy]
+python_version = "3.8"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+ignore_missing_imports = true
+check_untyped_defs = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+show_error_codes = true
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+ignore_errors = true
+
+# ========================================
+# pytest配置
+# ========================================
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "-v",
+    "--tb=short",
+    "--strict-markers",
+    "--disable-warnings",
+    "--cov=src",
+    "--cov-report=term-missing",
+    "--cov-report=html",
+]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+    "unit: marks tests as unit tests",
+]
+
+# ========================================
+# coverage配置
+# ========================================
+[tool.coverage.run]
+source = ["src"]
+omit = [
+    "*/tests/*",
+    "*/test_*.py",
+    "*/__pycache__/*",
+    "*/site-packages/*",
+]
+
+[tool.coverage.report]
+precision = 2
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "@abstractmethod",
+]
+
+# ========================================
+# bandit配置（安全检查）
+# ========================================
+[tool.bandit]
+exclude_dirs = ["tests", ".venv", "build"]
+skips = ["B101", "B601"]  # 跳过assert和shell相关检查
+

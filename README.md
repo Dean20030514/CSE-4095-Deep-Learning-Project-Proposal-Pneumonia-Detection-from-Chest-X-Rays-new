@@ -44,6 +44,8 @@
 
 ## ⚡ Quick Start
 
+**🎮 GPU Acceleration Enabled: CUDA 13.0 + RTX 5070** ⚡
+
 ### 1. Setup (5 min)
 
 ```powershell
@@ -64,26 +66,31 @@ python scripts/verify_environment.py
 python scripts/verify_dataset_integrity.py
 ```
 
-### 3. Train (15 min)
+### 3. Train
 
 ```powershell
-# Best config
-python -m src.train --config src/configs/balanced_training.yaml
+# Quick test (3 epochs, ~10 minutes) 🔧
+python src/train.py --config src/configs/quick_test_resnet18.yaml
 
-# Quick test (2 epochs)
-python -m src.train --config src/configs/colab_friendly.yaml --epochs 2
+# Best performance (98.26% macro recall) ⭐
+python src/train.py --config src/configs/model_efficientnet_b2.yaml
+
+# Final production model (highest quality) 🏆
+python src/train.py --config src/configs/final_model.yaml
 ```
+
+📖 **Detailed Training Guide:** [TRAINING_GUIDE.md](TRAINING_GUIDE.md)
 
 ### 4. Evaluate
 
 ```powershell
-python -m src.eval --ckpt runs/model_efficientnet_b2/best.pt --split val
+python src/eval.py --ckpt runs/model_efficientnet_b2/best_model.pt --data_root data --split val
 ```
 
 ### 5. Demo
 
 ```powershell
-streamlit run src/app/streamlit_app.py -- --ckpt runs/model_efficientnet_b2/best.pt
+streamlit run src/app/streamlit_app.py
 ```
 
 ---
@@ -120,11 +127,11 @@ streamlit run src/app/streamlit_app.py -- --ckpt runs/model_efficientnet_b2/best
 
 ## 📈 Top Models
 
-| Rank | Model | Macro Recall | Accuracy | Pneumonia Recall | Time |
-|------|-------|--------------|----------|------------------|------|
-| 🥇 | EfficientNet-B2 | 98.26% | 98.30% | 98.35% | 14 min |
-| 🥈 | ResNet18 | 97.63% | 97.79% | 99.53% | 25 min |
-| 🥉 | DenseNet121 | 97.60% | 97.62% | 96.93% | 20 min |
+| Rank | Model | Macro Recall | Accuracy | Pneumonia Recall | Time (GPU) |
+|------|-------|--------------|----------|------------------|------------|
+| 🥇 | EfficientNet-B2 | 98.26% | 98.30% | 98.35% | ~20 min ⚡ |
+| 🥈 | ResNet18 | 97.63% | 97.79% | 99.53% | ~15 min ⚡ |
+| 🥉 | DenseNet121 | 97.60% | 97.62% | 96.93% | ~18 min ⚡ |
 
 **Key Findings:**
 - Best overall: EfficientNet-B2 (fast convergence + balanced)
@@ -165,9 +172,20 @@ python scripts/error_analysis.py --ckpt runs/model_efficientnet_b2/best.pt
 
 ## 📖 Documentation
 
-- **[docs/ANALYSIS_GUIDE.md](docs/ANALYSIS_GUIDE.md)** - Complete toolkit documentation
-- **[docs/MODEL_CARD.md](docs/MODEL_CARD.md)** - Model specifications
-- **[docs/PLAYBOOK.md](docs/PLAYBOOK.md)** - Full implementation guide
+### Core Documentation (by priority)
+
+1. **[TRAINING_GUIDE.md](TRAINING_GUIDE.md)** ⭐ - Complete Training Guide
+2. **[docs/FINAL_PROJECT_REPORT.md](docs/FINAL_PROJECT_REPORT.md)** - Complete Technical Report
+3. **[docs/MODEL_CARD.md](docs/MODEL_CARD.md)** - Model Documentation
+4. **[docs/PLAYBOOK.md](docs/PLAYBOOK.md)** - Implementation Guide
+5. **[docs/ANALYSIS_GUIDE.md](docs/ANALYSIS_GUIDE.md)** - Analysis Tools
+6. **[docs/EXECUTIVE_SUMMARY_EN.md](docs/EXECUTIVE_SUMMARY_EN.md)** - Executive Summary
+
+### Configuration Files
+
+- **[pyproject.toml](pyproject.toml)** - Project configuration (includes pytest settings)
+- **[.pre-commit-config.yaml](.pre-commit-config.yaml)** - Git hooks
+- **[LICENSE](LICENSE)** - MIT License + Medical Disclaimer
 
 ---
 
@@ -189,18 +207,20 @@ python scripts/error_analysis.py --ckpt runs/model_efficientnet_b2/best.pt
 
 ## 🚀 Training Configurations
 
-### Available Configs
+### Available Configs (17 total)
 
-- `balanced_training.yaml` - **Recommended** (best overall)
-- `colab_friendly.yaml` - Low-resource option
-- `final_model.yaml` - EfficientNet-B2 @ 512px (production)
-- `medical_screening.yaml` - Max recall optimization
-- `ensemble_*.yaml` - For ensemble learning
+**Recommended configs:**
+- `model_efficientnet_b2.yaml` ⭐ - EfficientNet-B2 @ 384px (best: 98.26% macro recall)
+- `final_model.yaml` 🏆 - EfficientNet-B2 @ 512px (final production)
+- `lr_0.0005.yaml` - Optimal learning rate experiment
+- `quick_test_resnet18.yaml` 🔧 - Quick test (3 epochs, ~10 min)
+
+**All configs:** See [src/configs/README.md](src/configs/README.md) for complete list
 
 ### Custom Training
 
 ```powershell
-python -m src.train --config <path> \
+python src/train.py --config <path> \
   --epochs 25 \
   --lr 0.0005 \
   --batch_size 16 \
@@ -232,13 +252,67 @@ python -m src.train --config <path> \
 
 ---
 
+## 🧪 Testing
+
+### Run Tests
+
+```powershell
+# Basic tests
+pytest tests/ -v
+
+# Coverage report
+pytest tests/ --cov=src --cov-report=html
+
+# Using scripts (recommended)
+.\scripts\run_tests.ps1 -Coverage -Lint  # Windows
+bash scripts/run_tests.sh                # Linux/Mac
+```
+
+**Test Status:** ✅ 31/31 tests passed (100%)
+
+📖 **Test Documentation:** See [tests/README.md](tests/README.md)
+
+---
+
+## 🛠️ Development
+
+### Install Development Dependencies
+
+```powershell
+pip install -r requirements-dev.txt
+```
+
+### Code Quality Tools
+
+```powershell
+# Format code
+black src/ tests/
+isort src/ tests/
+
+# Check code
+flake8 src/ tests/
+mypy src/
+
+# Enable Git hooks (auto-check)
+pre-commit install
+pre-commit run --all-files
+```
+
+### Configuration Validation
+
+```powershell
+python src/utils/config_validator.py src/configs/final_model.yaml
+```
+
+---
+
 ## 🛠️ Requirements
 
-- Python 3.8+
-- PyTorch 2.0+
-- CUDA 11.8+ (optional, for GPU)
+- Python 3.8+ (3.13+ recommended)
+- PyTorch 2.9+
+- **CUDA 13.0 support** ✅ GPU acceleration available
 - 8GB RAM (16GB recommended)
-- GPU with 6GB+ VRAM (optional)
+- GPU with 8GB+ VRAM (tested on RTX 5070)
 
 ---
 
@@ -253,8 +327,10 @@ Deep Learning Course Project, 2025
 
 ## 📄 License
 
-Educational use only. Dataset from Kaggle.
+This project is licensed under the **MIT License** - see [LICENSE](LICENSE) file for details.
+
+⚠️ **Important Notice:** This software is for educational and research purposes only, **NOT for clinical diagnosis**. See the medical disclaimer in the LICENSE file.
 
 ---
 
-**Last Updated:** 2025-11-16 | **Status:** ✅ Complete
+**Last Updated:** 2025-11-18 | **Status:** ✅ Production-Ready | **GPU:** CUDA 13.0 + RTX 5070 ⚡

@@ -1,23 +1,29 @@
-seed: 42
-optimizer: adamw
-weight_decay: 0.0001
-scheduler: cosine
-amp: true
-num_workers: 0
-use_albumentations: true
-early_stopping:
-  metric: pneumonia_recall
-  patience: 7
-log:
-  run_name: medical_screening_optimized
-  csv: metrics.csv
-model: resnet18
+# Medical Screening - Maximize pneumonia recall
+# Auto-generated configuration file
+
+pretrained: true
+data_root: data
 img_size: 384
-batch_size: 16
-epochs: 30
+batch_size: 32
+num_workers: 12
+epochs: 100
 lr: 0.0002
+weight_decay: 0.0001
+early_stopping:
+  patience: 20
 loss: focal
-focal:
-  gamma: 2.0
-sampler: weighted_random
-augment_level: medium
+focal_gamma: 2.0
+use_weighted_sampler: true
+augmentation:
+  horizontal_flip: 0.5
+  rotation_degrees: 10
+  brightness: 0.1
+  contrast: 0.1
+optimizer: adamw
+scheduler: cosine
+warmup_epochs: 2
+amp: true
+save_best_only: false
+seed: 42
+model: resnet18
+output_dir: runs/medical_screening_optimized

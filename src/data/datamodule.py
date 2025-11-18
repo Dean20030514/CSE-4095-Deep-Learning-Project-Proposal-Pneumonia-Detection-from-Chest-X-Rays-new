@@ -30,35 +30,43 @@ class RobustImageFolder(datasets.ImageFolder):
             return self.__getitem__((index + 1) % len(self))
 
 
+class AlbumentationsTransform:
+    """
+    Picklable wrapper for albumentations transforms.
+    This class can be serialized by multiprocessing on Windows.
+    """
+    def __init__(self, img_size: int, is_train: bool = True):
+        if is_train:
+            self.transform = A.Compose([
+                A.Resize(img_size, img_size),
+                A.HorizontalFlip(p=0.5),
+                A.Rotate(limit=15, p=0.5),
+                A.RandomBrightnessContrast(brightness_limit=0.2, contrast_limit=0.2, p=0.5),
+                A.GaussianBlur(blur_limit=(3, 5), p=0.2),
+                A.CLAHE(clip_limit=2.0, p=0.3),
+                A.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+                ToTensorV2()
+            ])
+        else:
+            self.transform = A.Compose([
+                A.Resize(img_size, img_size),
+                A.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+                ToTensorV2()
+            ])
+    
+    def __call__(self, img):
+        """Convert PIL to numpy and apply albumentations transform."""
+        if isinstance(img, Image.Image):
+            img = np.array(img)
+        return self.transform(image=img)['image']
+
+
 def _albumentations_transforms(img_size: int, is_train: bool = True):
     """
     Create albumentations-based transforms (stronger augmentation).
+    Returns a picklable transform object for Windows multiprocessing compatibility.
     """
-    if is_train:
-        transform = A.Compose([
-            A.Resize(img_size, img_size),
-            A.HorizontalFlip(p=0.5),
-            A.Rotate(limit=15, p=0.5),
-            A.RandomBrightnessContrast(brightness_limit=0.2, contrast_limit=0.2, p=0.5),
-            A.GaussianBlur(blur_limit=(3, 5), p=0.2),
-            A.CLAHE(clip_limit=2.0, p=0.3),
-            A.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-            ToTensorV2()
-        ])
-    else:
-        transform = A.Compose([
-            A.Resize(img_size, img_size),
-            A.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-            ToTensorV2()
-        ])
-    
-    # Wrapper to convert PIL to numpy for albumentations
-    def wrapper(img):
-        if isinstance(img, Image.Image):
-            img = np.array(img)
-        return transform(image=img)['image']
-    
-    return wrapper
+    return AlbumentationsTransform(img_size, is_train)
 
 
 def _default_transforms(img_size: int, augment_level: str = 'medium'):
@@ -168,28 +176,44 @@ def build_dataloaders(data_root: str, img_size: int, batch_size: int, num_worker
 
     sampler = _make_samplers(train_ds) if use_weighted_sampler else None
 
+    # 性能优化的 DataLoader 配置
+    # pin_memory只在GPU模式下有用，CPU模式下禁用以避免警告
+    import torch
+    use_pin_memory = torch.cuda.is_available()
+    
+    dataloader_kwargs = {
+        'pin_memory': use_pin_memory,
+        'persistent_workers': num_workers > 0,  # 保持 worker 进程活跃
+        'prefetch_factor': 2 if num_workers > 0 else None,  # 预加载 2 个 batch
+    }
+    
     train_loader = DataLoader(
         train_ds,
         batch_size=batch_size,
         shuffle=(sampler is None),
         sampler=sampler,
         num_workers=num_workers,
-        pin_memory=True,
         drop_last=True,  # Drop incomplete batches for stable training
+        **dataloader_kwargs
     )
     val_loader = DataLoader(
         val_ds,
         batch_size=batch_size,
         shuffle=False,
         num_workers=num_workers,
-        pin_memory=True,
+        **dataloader_kwargs
     )
 
     # Check for test set
     if test_dir.exists():
         test_ds = RobustImageFolder(test_dir, transform=val_tf)
-        test_loader = DataLoader(test_ds, batch_size=batch_size, shuffle=False, 
-                                 num_workers=num_workers, pin_memory=True)
+        test_loader = DataLoader(
+            test_ds, 
+            batch_size=batch_size, 
+            shuffle=False, 
+            num_workers=num_workers,
+            **dataloader_kwargs
+        )
         print(f"  Test: {len(test_ds)} images")
     else:
         test_loader = None

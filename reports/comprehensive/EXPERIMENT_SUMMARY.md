@@ -1,8 +1,10 @@
 # Experiment Comparison Report
 
+> ⚠️ **Note:** This report is from 2025-11-16. Run `python scripts/analyze_all_experiments.py` to generate an updated report with all completed experiments.
+
 **Generated:** 2025-11-16 18:09:17
 
-**Total Experiments:** 14
+**Total Experiments:** 14 (more experiments available, needs update)
 
 ---
 
