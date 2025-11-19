@@ -2,36 +2,51 @@
 
 ## Model Details
 
-**Model Name**: Pneumonia-Detection-EfficientNet-B2  
-**Version**: 2.0 (EfficientNet-B2 @ 384px - Architecture Comparison Winner)  
-**Date**: 2025-11-18  
+**Model Name**: Pneumonia-Detection-Multi-Architecture  
+**Version**: 3.0 (15-Experiment Comprehensive Analysis)  
+**Date**: 2025-11-19  
 **Developers**: CSE-4095 Deep Learning Team  
 **Course**: CSE-4095 Deep Learning  
 
 ### Model Architecture
-- **🏆 Champion Model**: EfficientNet-B2 @ 384px (98.26% macro recall, 4-epoch convergence)
-- **Alternative Models**: 
-  - ResNet18 (highest pneumonia recall: 99.53%)
-  - DenseNet121 (best parameter efficiency: 8M params)
-  - ResNet50, EfficientNet-B0
+Based on **15 systematic experiments**, we provide multiple optimized models for different scenarios:
+
+- **🏆 Champion Model (Highest Performance)**: aug_aggressive  
+  - Architecture: EfficientNet-B0/ResNet18 @ 384px with aggressive augmentation
+  - **Validation**: 98.80% macro recall, 98.82% pneumonia recall, 98.81% accuracy
+  - **Test**: 97.39% macro recall, 97.18% pneumonia recall, 97.30% accuracy
+  - Best for: Production deployment requiring maximum overall performance
+
+- **🎯 Medical Screening (Highest Sensitivity)**: lr_0.0001  
+  - Architecture: EfficientNet-B0 @ 384px
+  - **Test**: 99.06% pneumonia recall (minimizes false negatives)
+  - Best for: Screening/triage scenarios prioritizing detection rate
+
+- **💰 Best Balance (Efficiency)**: model_densenet121  
+  - Architecture: DenseNet121 @ 384px
+  - **Validation**: 98.45% macro recall, 98.11% pneumonia recall
+  - Training time: Only 52 minutes
+  - Parameters: 7M (most parameter-efficient)
+  - Best for: Resource-constrained deployments
+
 - **Input Size**: 384×384 pixels (standardized across all models)
-- **Parameters**: ~9M trainable parameters (EfficientNet-B2)
 - **Pretrained**: ImageNet weights (transfer learning)
-- **Framework**: PyTorch 2.x with torch.amp API
-- **Loss Function**: Weighted Cross-Entropy (optimal for balanced performance)
-- **Data Augmentation**: Albumentations - Medium level (optimal balance)
-  - Horizontal flip (50%)
-  - Rotation (±10-15°)
-  - Brightness/contrast adjustment
-  - CLAHE, Gaussian blur
-  - Normalization with ImageNet statistics
+- **Framework**: PyTorch 2.9+ with torch.amp (CUDA 13.0 support)
+- **Loss Function**: Weighted Cross-Entropy (optimal for class imbalance)
+- **Data Augmentation**: Albumentations pipeline with multiple levels tested
 
 ### Model Selection Rationale
-After comprehensive architecture comparison (5 models), EfficientNet-B2 was selected as the champion model due to:
-- **Highest Performance**: 98.26% macro recall (0.63pp better than runner-up)
-- **Fastest Convergence**: Best performance achieved at epoch 4 (9 epochs total)
-- **Excellent Balance**: Pneumonia recall 98.35%, Normal recall 98.17% (0.18% gap)
-- **Efficient Architecture**: Only 9M parameters with superior performance
+After **15 comprehensive experiments** including:
+- **5 CNN architectures** (ResNet18/50, EfficientNet-B0/B2, DenseNet121)
+- **3 learning rates** (0.0001, 0.0005, 0.001)
+- **3 augmentation strategies** (light, medium, aggressive)
+- **Total training time**: 1,400+ minutes across 300+ epochs
+
+**Key Findings**:
+- **Aggressive augmentation**: +0.4-0.8% performance gain (98.80% validation macro recall)
+- **Lower learning rate (0.0001)**: Achieves 99.06% pneumonia recall (best for medical screening)
+- **DenseNet121**: Best efficiency with 98.45% in only 52 minutes
+- **Architecture matters more than size**: DenseNet121 (7M params) outperforms ResNet50 (25.6M params)
 
 ---
 
@@ -197,84 +212,102 @@ This model should **NOT** be used in the following scenarios:
 
 ## Performance Metrics
 
-### Overall Performance Comparison (Validation Set)
+### Overall Performance - Top 5 Models (Validation Set)
 
-#### Primary Models (Hyperparameter Optimized)
+| Rank | Experiment | Macro Recall | Pneumonia Recall | Val Accuracy | Training Time |
+|------|------------|--------------|------------------|--------------|---------------|
+| 🥇 | **aug_aggressive** | **98.80%** | 98.82% | 98.81% | 204 min |
+| 🥈 | model_densenet121 | 98.45% | 98.11% | 98.30% | 52 min |
+| 🥉 | aug_light | 98.40% | 97.41% | 97.96% | 52 min |
+| 4 | model_efficientnet_b0 | 98.38% | 98.58% | 98.47% | 108 min |
+| 5 | full_resnet18 | 98.33% | 97.88% | 98.13% | 40 min |
 
-| Metric | EfficientNet-B0 LR=0.0005 (Primary) 🏆 | EfficientNet-B0 LR=0.001 | EfficientNet-B0 LR=0.0001 |
-|--------|-------------------------------------|-------------------------|---------------------------|
-| Accuracy | **98.30%** (Epoch 14) | 98.13% (Epoch 11) | 97.79% (Epoch 8) |
-| Macro Recall | **98.26%** | 97.96% | 97.35% |
-| Pneumonia Recall | 98.35% | 98.35% | 98.35% |
-| Normal Recall | **98.17%** | 97.56% | 96.34% |
-| Macro F1 | **0.9790** | 0.9770 | 0.9712 |
-| Training Time | 23 min | 19 min | 15 min |
+### Test Set Performance (Final Evaluation - aug_aggressive)
 
-#### Augmentation Level Comparison (EfficientNet-B0 @ LR=0.0003)
+| Metric | Value | Notes |
+|--------|-------|-------|
+| **Overall Accuracy** | **97.30%** | Unbiased final evaluation |
+| **Macro Recall** | **97.39%** | Primary KPI |
+| **Pneumonia Recall (Sensitivity)** | **97.18%** | Detected 207/213 cases |
+| **Normal Recall (Specificity)** | **97.59%** | Detected 81/83 cases |
+| **ROC-AUC** | **99.73%** | Excellent discrimination |
+| **PR-AUC** | **99.89%** | Outstanding precision-recall tradeoff |
+| **False Positives** | 2 (2.41%) | Minimal false alarms |
+| **False Negatives** | 6 (2.82%) | Acceptable missed cases |
 
-| Metric | Medium (Recommended) | Light | Aggressive |
-|--------|---------------------|-------|------------|
-| Accuracy | **98.13%** | 97.96% | 97.96% |
-| Macro Recall | 98.14% | **98.21%** | **98.21%** |
-| Pneumonia Recall | **98.11%** | 97.64% | 97.64% |
-| Normal Recall | 98.17% | **98.78%** | **98.78%** |
-| Best Epoch | **6** (fastest) | 8 | 8 |
-| Training Time | **13 min** | 15 min | 15 min |
-
-#### Baseline Models
-
-| Metric | ResNet50 | EfficientNet-B0 Baseline | ResNet18 |
-|--------|----------|--------------------------|----------|
-| Accuracy | 97.28% | 97.96% | 97.28% |
-| Macro Recall | 97.55% | 97.93% | 96.62% |
-| Pneumonia Precision | 99.28% | 98.35% | 98.57% |
-| Training Time | 13 min | 20 min | 8 min |
-
-### Per-Class Metrics (Primary Model - EfficientNet-B0 LR=0.0005, Best Epoch 14)
-
-| Class | Precision | Recall | F1-Score | Support |
-|-------|-----------|--------|----------|---------|
-| NORMAL | 0.9821 | **0.9817** | 0.9819 | 164 |
-| PNEUMONIA | 0.9931 | **0.9835** | 0.9883 | 424 |
-
-**Key Strengths:**
-- **Highest Macro Recall**: 98.26% - Best overall balanced performance
-- **Exceptional Pneumonia Detection**: 98.35% Pneumonia recall
-- **Strong Normal Detection**: 98.17% Normal recall
-- **Excellent Precision**: 99.31% Pneumonia precision - minimal false positives
-- **Optimal Learning Rate**: LR=0.0005 provides best balance
-- **Weighted Cross-Entropy**: Effectively handles class imbalance
-- **Efficient Training**: Converged at epoch 14 in 23 minutes
-
-### Augmentation Findings
-- **Medium augmentation is optimal**: Fastest convergence (epoch 6), highest validation accuracy (98.13%)
-- **All augmentation levels achieve >98% macro recall**: Minimal difference (<0.5%)
-- **Albumentations pipeline is robust**: Strong default augmentations already included
-
-### Threshold Analysis
-
-**Default Threshold (0.5)**:
-- PNEUMONIA Recall: 0.9693 (96.93%)
-- PNEUMONIA Precision: 0.9928 (99.28%)
-- Excellent precision-recall balance with extremely low false positives
-
-**Max-Recall Mode (threshold sweep pending)**:
-- Run evaluation with `--threshold_sweep` flag to determine optimal threshold
-- Target: Maximize sensitivity for triage/screening scenarios
-- Use case: Minimize false negatives in clinical screening
-
-**Balanced Mode (threshold sweep pending)**:
-- Run evaluation with `--threshold_sweep` flag to optimize F1-score
-- Use case: Balanced clinical decision support
-
-### Confusion Matrix (Validation)
-
+**Confusion Matrix (Test Set)**:
 ```
-                Predicted
-Actual      NORMAL  PNEUMONIA
-NORMAL        [TP]     [FP]
-PNEUMONIA     [FN]     [TP]
+                 Predicted
+Actual       NORMAL  PNEUMONIA
+NORMAL         81       2        (97.59% recall)
+PNEUMONIA       6     207        (97.18% recall)
 ```
+
+### Scenario-Specific Model Recommendations
+
+#### 1. Maximum Performance (Production Deployment)
+**Model**: `aug_aggressive`
+- Validation: 98.80% macro recall, 98.82% pneumonia recall
+- Test: 97.30% accuracy, 97.18% pneumonia recall
+- Training: 204 minutes (acceptable for best performance)
+
+#### 2. Medical Screening (Minimize False Negatives)
+**Model**: `lr_0.0001`
+- **Pneumonia Recall: 99.06%** (highest sensitivity)
+- Only 2 false negatives out of 213 pneumonia cases
+- Optimal for: Triage, screening programs, high-risk populations
+
+#### 3. Balanced Efficiency (Production-Ready)
+**Model**: `model_densenet121`
+- 98.45% macro recall in only 52 minutes
+- 7M parameters (most efficient)
+- Optimal for: Resource-constrained settings, rapid deployment
+
+#### 4. Rapid Prototyping (Development)
+**Model**: `model_resnet18`
+- 97.86% macro recall in 24 minutes
+- Fast iteration cycles
+- Optimal for: Research, experimentation, quick testing
+
+### Architecture Comparison (Validation Set)
+
+| Architecture | Macro Recall | Parameters | Time | Efficiency Score |
+|--------------|--------------|------------|------|------------------|
+| EfficientNet-B0 | 98.38% | 5.3M | 108 min | 0.911 |
+| **DenseNet121** | **98.45%** | **7M** | **52 min** | **1.893** 🏆 |
+| ResNet18 | 97.86% | 11.2M | 24 min | **4.078** ⚡ |
+| ResNet50 | 97.60% | 25.6M | 32 min | 3.050 |
+| EfficientNet-B2 | 98.07% | 9M | 80 min | 1.226 |
+
+### Hyperparameter Analysis
+
+#### Learning Rate Impact
+| LR | Macro Recall | Pneumonia Recall | Best Epoch |
+|----|--------------|------------------|------------|
+| 0.0001 | 98.00% | **99.06%** ⭐ | 38 |
+| **0.0005** | **98.45%** 🏆 | 98.11% | 9 |
+| 0.001 | 97.96% | 98.35% | 30 |
+
+**Finding**: LR=0.0001 achieves highest pneumonia recall (99.06%) but requires longer training. LR=0.0005 provides best overall balance.
+
+#### Data Augmentation Impact
+| Level | Macro Recall | Val Accuracy | Training Time |
+|-------|--------------|--------------|---------------|
+| **Aggressive** | **98.80%** 🏆 | 98.81% | 204 min |
+| Medium | 98.14% | 98.13% | 108 min |
+| Light | 98.40% | 97.96% | 52 min |
+
+**Finding**: Aggressive augmentation provides +0.4-0.8% performance gain, strong regularization effect prevents overfitting.
+
+### Threshold Analysis (Test Set)
+
+| Mode | Threshold | Recall | Precision | F1 | Use Case |
+|------|-----------|--------|-----------|----|----|
+| **Screening** | 0.10 | **99.06%** | 97.24% | 98.14% | Maximize detection |
+| **Balanced** | 0.15 | 99.06% | 98.14% | **98.60%** | General use |
+| **Confirmatory** | 0.525 | 97.18% | **99.52%** | 98.34% | Minimize false positives |
+
+**Key Insight**: Lowering threshold to 0.10-0.15 can achieve 99.06% pneumonia recall (only 2 missed cases) while maintaining 97-98% precision.
 
 ---
 

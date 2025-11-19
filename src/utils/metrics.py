@@ -60,15 +60,29 @@ def compute_metrics(y_true: np.ndarray, y_pred: np.ndarray, labels: Dict[int, st
         try:
             num_classes = y_probs.shape[1]
             if num_classes == 2:
-                # Binary: use positive class probability
-                out['roc_auc'] = float(roc_auc_score(y_true, y_probs[:, 1]))
-                out['pr_auc'] = float(average_precision_score(y_true, y_probs[:, 1]))
+                # Binary classification: 确定正类索引
+                # 假设标签值较大的类为正类（通常 PNEUMONIA=1, NORMAL=0）
+                positive_class = int(y_true.max())
+                
+                # 如果标签是 {0, 1}，使用对应索引的概率
+                if positive_class < num_classes:
+                    positive_probs = y_probs[:, positive_class]
+                else:
+                    # 回退：使用第二列（索引1）
+                    positive_probs = y_probs[:, 1]
+                
+                # 二值化标签（转换为 0/1）
+                y_true_binary = (y_true == positive_class).astype(int)
+                
+                out['roc_auc'] = float(roc_auc_score(y_true_binary, positive_probs))
+                out['pr_auc'] = float(average_precision_score(y_true_binary, positive_probs))
             else:
                 # Multi-class: macro average
                 out['roc_auc'] = float(roc_auc_score(y_true, y_probs, 
                                                      multi_class='ovr', average='macro'))
                 out['pr_auc'] = float(average_precision_score(y_true, y_probs, average='macro'))
-        except (ValueError, IndexError):
+        except (ValueError, IndexError) as e:
+            # 计算失败时记录警告但不中断
             out['roc_auc'] = None
             out['pr_auc'] = None
     

@@ -29,16 +29,26 @@ class ConfigValidator:
         'loss': str,
         'focal_gamma': float,
         'use_weighted_sampler': bool,
+        'sampler': str,  # 新增：sampler 字段
         'augment_level': str,
+        'augmentation': dict,  # 新增：嵌套的增强配置
         'optimizer': str,
         'scheduler': str,
         'warmup_epochs': int,
+        'step_size': int,  # 新增：StepLR 配置
+        'gamma': float,  # 新增：scheduler gamma
         'amp': bool,
         'output_dir': str,
         'save_best_only': bool,
+        'save_last_interval': int,  # 新增：last checkpoint 保存间隔
         'seed': int,
         'val_interval': int,
         'use_albumentations': bool,
+        'early_stopping': dict,  # 新增：early stopping 配置
+        'focal': dict,  # 新增：focal loss 配置
+        'allow_nondeterministic': bool,  # 新增：性能优化选项
+        'allow_tf32': bool,  # 新增：TF32 选项
+        'memory_efficient': bool,  # 新增：显存优化选项
     }
     
     # 有效值的枚举
@@ -52,6 +62,7 @@ class ConfigValidator:
     VALID_OPTIMIZERS = ['adam', 'adamw', 'sgd']
     VALID_SCHEDULERS = ['step', 'cosine', 'exponential', 'none']
     VALID_AUGMENT_LEVELS = ['light', 'medium', 'heavy', 'aggressive']
+    VALID_SAMPLERS = ['weighted_random', 'random', 'none']
     
     @classmethod
     def validate(cls, config: Dict[str, Any]) -> None:
@@ -150,10 +161,47 @@ class ConfigValidator:
                     f"支持: {', '.join(cls.VALID_AUGMENT_LEVELS)}"
                 )
         
-        # 6. 验证逻辑一致性
+        if 'sampler' in config:
+            sampler = config['sampler'].lower()
+            if sampler not in cls.VALID_SAMPLERS:
+                errors.append(
+                    f"❌ 无效的sampler: '{sampler}'. "
+                    f"支持: {', '.join(cls.VALID_SAMPLERS)}"
+                )
+        
+        # 6. 验证嵌套结构
+        if 'early_stopping' in config:
+            es_cfg = config['early_stopping']
+            if not isinstance(es_cfg, dict):
+                errors.append("❌ 'early_stopping' 必须是字典类型")
+            elif 'patience' not in es_cfg:
+                errors.append("❌ 'early_stopping' 缺少必需字段 'patience'")
+            elif not isinstance(es_cfg['patience'], int) or es_cfg['patience'] < 0:
+                errors.append("❌ 'early_stopping.patience' 必须是非负整数")
+        
+        if 'focal' in config:
+            focal_cfg = config['focal']
+            if not isinstance(focal_cfg, dict):
+                errors.append("❌ 'focal' 必须是字典类型")
+            elif 'gamma' in focal_cfg:
+                gamma = focal_cfg['gamma']
+                if not isinstance(gamma, (int, float)) or gamma < 0:
+                    errors.append("❌ 'focal.gamma' 必须是非负数值")
+        
+        if 'augmentation' in config:
+            aug_cfg = config['augmentation']
+            if not isinstance(aug_cfg, dict):
+                errors.append("❌ 'augmentation' 必须是字典类型")
+        
+        # 7. 验证逻辑一致性
         if 'focal_gamma' in config and config.get('loss', '').lower() != 'focal':
             errors.append(
                 "⚠️ 警告: 配置了focal_gamma但loss不是'focal'"
+            )
+        
+        if 'focal' in config and config.get('loss', '').lower() != 'focal':
+            errors.append(
+                "⚠️ 警告: 配置了focal但loss不是'focal'"
             )
         
         if 'weight_decay' in config:

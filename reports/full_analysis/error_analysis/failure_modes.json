@@ -1,0 +1,52 @@
+{
+  "summary": {
+    "total_FP": 2,
+    "total_FN": 6,
+    "FP_high_confidence": 1,
+    "FP_low_confidence": 1,
+    "FN_high_confidence": 2,
+    "FN_low_confidence": 1
+  },
+  "failure_categories": [
+    {
+      "category": "FP-1: High Confidence False Positives",
+      "count": 1,
+      "description": "Model very confident but wrong - likely subtle artifacts, device shadows, or anatomical variations mistaken for pathology",
+      "severity": "MAJOR",
+      "recommendation": "Review with Grad-CAM to identify spurious features. Consider data augmentation to reduce reliance on artifacts."
+    },
+    {
+      "category": "FP-2: Low Confidence False Positives",
+      "count": 1,
+      "description": "Model uncertain predictions - borderline cases with ambiguous features",
+      "severity": "MINOR",
+      "recommendation": "Threshold adjustment can eliminate these. Acceptable trade-off for higher recall."
+    },
+    {
+      "category": "FN-1: High Confidence False Negatives",
+      "count": 2,
+      "description": "Model confident NORMAL but missed pneumonia - critical errors indicating early/subtle signs or poor image quality",
+      "severity": "CRITICAL",
+      "recommendation": "[!] PRIORITY: Manually review these cases. May need additional training data with subtle pneumonia cases."
+    },
+    {
+      "category": "FN-2: Low Confidence False Negatives",
+      "count": 1,
+      "description": "Model uncertain about pneumonia - lowering threshold can catch these cases",
+      "severity": "MAJOR",
+      "recommendation": "Threshold tuning recommended. Consider ensemble or secondary review for low-confidence predictions."
+    }
+  ],
+  "medical_implications": {
+    "FP_clinical_impact": "False positives lead to unnecessary follow-up tests (X-ray confirmation, CT, labs). Increases healthcare costs but low patient harm.",
+    "FN_clinical_impact": "[!] CRITICAL: False negatives mean missed pneumonia cases. Can delay treatment and worsen patient outcomes. Must be minimized.",
+    "threshold_strategy": "For medical screening: Lower threshold to maximize recall (sensitivity ≥99%), accept higher false positive rate. Use as triage tool, not diagnostic."
+  },
+  "next_steps": [
+    "1. Generate Grad-CAM visualizations for top high-confidence errors",
+    "2. Perform threshold sweep to find optimal operating point (Max Recall mode)",
+    "3. Consider ensemble methods or secondary classifier for borderline cases",
+    "4. Collect additional training data for failure modes (if available)",
+    "5. Document error patterns in Model Card for transparency"
+  ]
+}

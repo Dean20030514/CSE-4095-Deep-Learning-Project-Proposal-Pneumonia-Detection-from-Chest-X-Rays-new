@@ -177,7 +177,7 @@ def analyze_failure_modes(errors, idx_to_class):
                 'count': len(fn_high_conf),
                 'description': 'Model confident NORMAL but missed pneumonia - critical errors indicating early/subtle signs or poor image quality',
                 'severity': 'CRITICAL',
-                'recommendation': '⚠️ PRIORITY: Manually review these cases. May need additional training data with subtle pneumonia cases.'
+                'recommendation': '[!] PRIORITY: Manually review these cases. May need additional training data with subtle pneumonia cases.'
             },
             {
                 'category': 'FN-2: Low Confidence False Negatives',
@@ -189,7 +189,7 @@ def analyze_failure_modes(errors, idx_to_class):
         ],
         'medical_implications': {
             'FP_clinical_impact': 'False positives lead to unnecessary follow-up tests (X-ray confirmation, CT, labs). Increases healthcare costs but low patient harm.',
-            'FN_clinical_impact': '⚠️ CRITICAL: False negatives mean missed pneumonia cases. Can delay treatment and worsen patient outcomes. Must be minimized.',
+            'FN_clinical_impact': '[!] CRITICAL: False negatives mean missed pneumonia cases. Can delay treatment and worsen patient outcomes. Must be minimized.',
             'threshold_strategy': 'For medical screening: Lower threshold to maximize recall (sensitivity ≥99%), accept higher false positive rate. Use as triage tool, not diagnostic.'
         },
         'next_steps': [
@@ -230,7 +230,7 @@ def main():
     
     print(f"Model: {model_name} @ {img_size}px")
     if args.model:
-        print(f"⚠️  Model name overridden: {cfg.get('model')} -> {model_name}")
+        print(f"[!] Model name overridden: {cfg.get('model')} -> {model_name}")
     print(f"Classes: {idx_to_class}")
     print(f"Pneumonia index: {pneumonia_idx}")
     
@@ -262,7 +262,7 @@ def main():
     print(f"{'='*70}")
     
     for category in failure_modes['failure_categories']:
-        severity_marker = "⚠️" if category['severity'] == 'CRITICAL' else "🔴" if category['severity'] == 'MAJOR' else "🟡"
+        severity_marker = "[!]" if category['severity'] == 'CRITICAL' else "[X]" if category['severity'] == 'MAJOR' else "[*]"
         print(f"\n{severity_marker} {category['category']}")
         print(f"  Count: {category['count']}")
         print(f"  Severity: {category['severity']}")

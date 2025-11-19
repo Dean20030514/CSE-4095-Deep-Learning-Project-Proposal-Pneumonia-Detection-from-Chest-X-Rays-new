@@ -4,19 +4,26 @@ Generates comparison tables and visualizations for all experiments.
 """
 
 import argparse
-import json
+import sys
 from pathlib import Path
-from collections import defaultdict
 
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 
+# Fix Windows console encoding for Unicode characters
+if sys.platform == 'win32':
+    try:
+        sys.stdout.reconfigure(encoding='utf-8')
+    except AttributeError:
+        import codecs
+        sys.stdout = codecs.getwriter('utf-8')(sys.stdout.buffer, 'strict')
+
 
 def load_experiment_results(runs_dir):
     """
-    从 runs 目录加载所有实验的 metrics.csv
+    从 runs 目录加载所有实验的 metrics_history.csv
     
     Returns:
         experiments: dict {experiment_name: DataFrame}
@@ -26,7 +33,8 @@ def load_experiment_results(runs_dir):
     
     for exp_dir in runs_dir.iterdir():
         if exp_dir.is_dir():
-            metrics_file = exp_dir / 'metrics.csv'
+            # 修复：正确的文件名是 metrics_history.csv
+            metrics_file = exp_dir / 'metrics_history.csv'
             if metrics_file.exists():
                 try:
                     df = pd.read_csv(metrics_file)
@@ -54,6 +62,19 @@ def extract_best_metrics(experiments):
         best_idx = df['macro_recall'].idxmax()
         best_row = df.loc[best_idx]
         
+        # 计算训练时间（如果有时间戳数据）
+        if 'timestamp' in df.columns:
+            try:
+                # 从时间戳计算实际训练时间
+                train_time_min = (df['timestamp'].iloc[-1] - df['timestamp'].iloc[0]) / 60.0
+            except Exception:
+                train_time_min = np.nan
+        else:
+            # 估算：假设每个 epoch 平均 3-5 分钟（取决于模型和数据集大小）
+            # 这只是粗略估计，实际时间会因硬件和配置而异
+            estimated_time_per_epoch = 4.0  # 平均每个epoch 4分钟
+            train_time_min = best_row.get('epoch', 0) * estimated_time_per_epoch
+        
         summary_rows.append({
             'Experiment': exp_name,
             'Best Epoch': int(best_row.get('epoch', -1)),
@@ -66,7 +87,7 @@ def extract_best_metrics(experiments):
             'Normal Recall': best_row.get('normal_recall', np.nan),
             'Normal Precision': best_row.get('normal_precision', np.nan),
             'Val Loss': best_row.get('val_loss', np.nan),
-            'Train Time (min)': best_row.get('epoch', 0) * best_row.get('train_time', 0) / 60.0
+            'Train Time (min)': train_time_min
         })
     
     summary_df = pd.DataFrame(summary_rows)
@@ -93,9 +114,12 @@ def plot_experiment_comparison(summary_df, save_dir, top_n=10):
     df = summary_df.head(top_n).copy()
     
     # Plot 1: Macro Recall comparison (horizontal bar)
-    fig, ax = plt.subplots(figsize=(12, max(6, len(df) * 0.4)))
+    _fig1, ax = plt.subplots(figsize=(12, max(6, len(df) * 0.4)))
     
-    colors = plt.cm.RdYlGn(df['Macro Recall'].values)
+    # 使用colormap对recall值着色
+    norm = plt.Normalize(vmin=0.9, vmax=1.0)
+    cmap = plt.get_cmap('RdYlGn')
+    colors = cmap(norm(df['Macro Recall'].values))
     bars = ax.barh(df['Experiment'], df['Macro Recall'], color=colors, edgecolor='black')
     
     # Add value labels
@@ -125,7 +149,7 @@ def plot_experiment_comparison(summary_df, save_dir, top_n=10):
     if available_cols:
         heatmap_data = df[['Experiment'] + available_cols].set_index('Experiment')
         
-        fig, ax = plt.subplots(figsize=(10, max(6, len(df) * 0.4)))
+        _fig, ax = plt.subplots(figsize=(10, max(6, len(df) * 0.4)))
         sns.heatmap(heatmap_data, annot=True, fmt='.4f', cmap='RdYlGn', 
                    vmin=0.9, vmax=1.0, cbar_kws={'label': 'Score'},
                    linewidths=0.5, ax=ax)
@@ -174,7 +198,7 @@ def plot_experiment_comparison(summary_df, save_dir, top_n=10):
     print(f"✓ Saved: {save_dir / 'recall_precision_scatter.png'}")
     
     # Plot 4: Training efficiency (Macro Recall vs Training Time)
-    fig, ax = plt.subplots(figsize=(10, 8))
+    _fig, ax = plt.subplots(figsize=(10, 8))
     
     scatter = ax.scatter(df['Train Time (min)'], df['Macro Recall'],
                         s=200, c=df['Val Accuracy'], cmap='plasma', 
@@ -223,7 +247,7 @@ def plot_training_curves(experiments, save_dir, top_n=5):
     top_exps = sorted(exp_scores.items(), key=lambda x: x[1], reverse=True)[:top_n]
     
     # Plot Pneumonia Recall curves
-    fig, ax = plt.subplots(figsize=(12, 7))
+    _fig1, ax = plt.subplots(figsize=(12, 7))
     
     for exp_name, _ in top_exps:
         df = experiments[exp_name]
@@ -246,7 +270,7 @@ def plot_training_curves(experiments, save_dir, top_n=5):
     print(f"✓ Saved: {save_dir / 'pneumonia_recall_curves.png'}")
     
     # Plot Loss curves
-    fig, ax = plt.subplots(figsize=(12, 7))
+    _fig2, ax = plt.subplots(figsize=(12, 7))
     
     for exp_name, _ in top_exps:
         df = experiments[exp_name]
@@ -349,7 +373,7 @@ def main():
     print(f"✓ Loaded {len(experiments)} experiments")
     
     if not experiments:
-        print("❌ No experiment results found!")
+        print("ERROR: No experiment results found!")
         return
     
     # Extract best metrics

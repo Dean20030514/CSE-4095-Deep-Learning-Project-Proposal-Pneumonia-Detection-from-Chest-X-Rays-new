@@ -340,8 +340,8 @@ if ($successCount -gt 0) {
         Write-Log "分析所有实验结果..." $Colors.Warning
         python scripts/analyze_all_experiments.py
         
-        Write-Log "生成可视化图表..." $Colors.Warning
-        python scripts/plot_metrics.py
+        # Note: analyze_all_experiments.py 已经生成了所有需要的可视化图表
+        # plot_metrics.py 用于单个实验分析，这里不需要调用
         
         Write-Log "✅ 分析完成！" $Colors.Success
     } catch {

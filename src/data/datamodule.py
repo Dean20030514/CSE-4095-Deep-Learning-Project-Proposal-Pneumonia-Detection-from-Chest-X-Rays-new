@@ -20,14 +20,40 @@ class RobustImageFolder(datasets.ImageFolder):
     """
     ImageFolder with error handling for corrupted images.
     Skips corrupted files instead of crashing.
+    Implements retry logic with maximum attempts to avoid infinite loops.
     """
+    def __init__(self, *args, max_retry_attempts=10, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.max_retry_attempts = max_retry_attempts
+    
     def __getitem__(self, index):
-        try:
-            return super().__getitem__(index)
-        except (OSError, ValueError) as e:
-            print(f"Warning: Failed to load image at index {index}: {e}")
-            # Return a random valid sample instead
-            return self.__getitem__((index + 1) % len(self))
+        """
+        Load image with robust error handling.
+        
+        If an image fails to load, tries the next image up to max_retry_attempts times.
+        This prevents infinite loops on datasets with many corrupted images.
+        """
+        for attempt in range(self.max_retry_attempts):
+            try:
+                return super().__getitem__(index)
+            except (OSError, ValueError, IOError, RuntimeError) as e:
+                if attempt == 0:
+                    # 只在第一次失败时打印警告，避免日志泛滥
+                    print(f"Warning: Failed to load image at index {index}: {e}")
+                
+                if attempt == self.max_retry_attempts - 1:
+                    # 达到最大重试次数，抛出异常
+                    raise RuntimeError(
+                        f"Failed to load {self.max_retry_attempts} consecutive images. "
+                        f"Dataset may contain too many corrupted files. "
+                        f"Please check data integrity."
+                    ) from e
+                
+                # 尝试下一个索引
+                index = (index + 1) % len(self)
+        
+        # 不应该到达这里，但作为安全保障
+        raise RuntimeError("Unexpected error in RobustImageFolder.__getitem__")
 
 
 class AlbumentationsTransform:
@@ -181,11 +207,15 @@ def build_dataloaders(data_root: str, img_size: int, batch_size: int, num_worker
     import torch
     use_pin_memory = torch.cuda.is_available()
     
-    dataloader_kwargs = {
-        'pin_memory': use_pin_memory,
-        'persistent_workers': num_workers > 0,  # 保持 worker 进程活跃
-        'prefetch_factor': 2 if num_workers > 0 else None,  # 预加载 2 个 batch
-    }
+    # 基础配置
+    dataloader_kwargs = {'pin_memory': use_pin_memory}
+    
+    # 只在使用多进程时添加 persistent_workers 和 prefetch_factor
+    if num_workers > 0:
+        dataloader_kwargs.update({
+            'persistent_workers': True,  # 保持 worker 进程活跃
+            'prefetch_factor': 2,  # 预加载 2 个 batch
+        })
     
     train_loader = DataLoader(
         train_ds,

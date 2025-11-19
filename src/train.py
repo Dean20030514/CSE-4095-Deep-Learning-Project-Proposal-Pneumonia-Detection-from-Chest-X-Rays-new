@@ -30,22 +30,51 @@ class FocalLoss(nn.Module):
     Args:
         gamma: Focusing parameter (default: 1.5). Higher values increase focus on hard examples.
         weight: Per-class weights for handling imbalance (optional)
+        reduction: Reduction method ('mean', 'sum', or 'none')
     
     Example:
         >>> loss_fn = FocalLoss(gamma=2.0, weight=torch.tensor([1.0, 2.0]))
         >>> loss = loss_fn(logits, targets)
     """
-    def __init__(self, gamma: float = 1.5, weight=None):
+    def __init__(self, gamma: float = 1.5, weight=None, reduction: str = 'mean'):
         super().__init__()
         self.gamma = gamma
         self.weight = weight
-        self.ce = nn.CrossEntropyLoss(weight=weight)
+        self.reduction = reduction
 
     def forward(self, logits, targets):
-        logp = -self.ce(logits, targets)
-        p = torch.exp(logp)
-        loss = -((1 - p) ** self.gamma) * logp
-        return loss.mean()
+        """
+        Args:
+            logits: Model outputs (N, C) before softmax
+            targets: Ground truth labels (N,)
+        
+        Returns:
+            Focal loss value
+        """
+        # 计算 log probabilities（数值稳定）
+        log_probs = torch.nn.functional.log_softmax(logits, dim=-1)
+        
+        # 获取目标类别的 log probability
+        log_pt = log_probs.gather(1, targets.unsqueeze(1)).squeeze(1)
+        
+        # 计算 probability pt
+        pt = torch.exp(log_pt)
+        
+        # Focal Loss 公式: -(1-pt)^gamma * log(pt)
+        focal_weight = (1 - pt) ** self.gamma
+        focal_loss = -focal_weight * log_pt
+        
+        # 应用类别权重（如果提供）
+        if self.weight is not None:
+            focal_loss = focal_loss * self.weight[targets]
+        
+        # 应用 reduction
+        if self.reduction == 'mean':
+            return focal_loss.mean()
+        elif self.reduction == 'sum':
+            return focal_loss.sum()
+        else:
+            return focal_loss
 
 
 def set_seed(seed: int = 42):
@@ -133,19 +162,26 @@ def main():
     set_seed(seed)
     
     # ========================================
-    # 性能优化设置 (不影响精度)
+    # 性能优化设置
     # ========================================
-    # 1. 启用 cuDNN 自动调优 (首次训练会慢一些,之后更快)
-    torch.backends.cudnn.benchmark = True
+    # 可选：允许非确定性行为以提升性能（会影响可复现性）
+    allow_nondeterministic = cfg.get('allow_nondeterministic', False)
+    if allow_nondeterministic:
+        torch.backends.cudnn.benchmark = True
+        torch.backends.cudnn.deterministic = False
+        print("\n[WARNING] Non-deterministic mode enabled - results may vary between runs")
     
-    # 2. 启用 TF32 精度 (RTX 30/40/50系列支持,加速矩阵运算)
-    # 使用 PyTorch 2.9+ 推荐的新 API
-    torch.backends.cuda.matmul.fp32_precision = 'tf32'
-    torch.backends.cudnn.conv.fp32_precision = 'tf32'
+    # 启用 TF32 精度 (RTX 30/40/50系列支持,加速矩阵运算)
+    # 不影响可复现性，但会有轻微精度差异
+    if torch.cuda.is_available():
+        torch.backends.cuda.matmul.allow_tf32 = cfg.get('allow_tf32', True)
+        torch.backends.cudnn.allow_tf32 = cfg.get('allow_tf32', True)
     
-    print("\n[Performance Optimizations Enabled]")
+    print("\n[Performance Settings]")
+    print(f"  - cuDNN deterministic: {torch.backends.cudnn.deterministic}")
     print(f"  - cuDNN benchmark: {torch.backends.cudnn.benchmark}")
-    print(f"  - TF32 precision: {torch.backends.cuda.matmul.fp32_precision}")
+    if torch.cuda.is_available():
+        print(f"  - TF32 enabled: {torch.backends.cuda.matmul.allow_tf32}")
     print(f"  - Device: {torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'CPU'}")
 
     # 命令行参数优先于配置文件
@@ -157,7 +193,15 @@ def main():
     lr = float(args.lr if args.lr is not None else cfg.get('lr', 1e-3))
     weight_decay = float(cfg.get('weight_decay', 1e-4))
     loss_name = cfg.get('loss', 'weighted_ce')
-    use_sampler = cfg.get('sampler', 'weighted_random') == 'weighted_random'
+    
+    # 兼容两种配置方式：sampler 和 use_weighted_sampler
+    if 'sampler' in cfg:
+        use_sampler = (cfg['sampler'] == 'weighted_random')
+    elif 'use_weighted_sampler' in cfg:
+        use_sampler = cfg['use_weighted_sampler']
+    else:
+        use_sampler = True  # 默认使用 weighted sampler
+    
     use_amp = cfg.get('amp', False)
     num_workers = int(cfg.get('num_workers', 4))
     use_albumentations = cfg.get('use_albumentations', True)
@@ -175,7 +219,7 @@ def main():
         augment_level=augment_level
     )
     num_classes = len(class_to_idx)
-    idx_to_class = {v: k for k, v in class_to_idx.items()}
+    # idx_to_class = {v: k for k, v in class_to_idx.items()}  # Unused for now
     
     # 找到 PNEUMONIA 类的索引(用于计算 recall)
     pneumonia_idx = class_to_idx.get('PNEUMONIA', class_to_idx.get('pneumonia', 1))
@@ -188,6 +232,32 @@ def main():
     # 优化 3: 使用 channels_last 内存格式 (更高效的内存访问模式)
     model = model.to(memory_format=torch.channels_last)
     print(f"  - Memory format: channels_last")
+    
+    # 优化 6: 显存优化模式（可选）
+    memory_efficient = cfg.get('memory_efficient', False)
+    if memory_efficient and torch.cuda.is_available():
+        print("\n[Memory Efficient Mode Enabled]")
+        
+        # 启用梯度检查点（降低显存使用，但增加计算时间）
+        # 注意：不是所有模型都支持，需要模型显式实现
+        if hasattr(model, 'set_grad_checkpointing'):
+            model.set_grad_checkpointing(True)
+            print("  ✓ Gradient checkpointing enabled")
+        
+        # 清空 CUDA 缓存
+        torch.cuda.empty_cache()
+        print("  ✓ CUDA cache cleared")
+        
+        # 启用 PyTorch 的内存高效功能（如果可用）
+        if hasattr(torch.backends.cuda, 'enable_mem_efficient_sdp'):
+            torch.backends.cuda.enable_mem_efficient_sdp(True)
+            print("  ✓ Memory-efficient attention enabled")
+        
+        # 设置更积极的显存释放策略
+        if hasattr(torch.cuda, 'set_per_process_memory_fraction'):
+            # 限制每个进程最多使用 90% 的 GPU 显存
+            torch.cuda.set_per_process_memory_fraction(0.9, device=device)
+            print("  ✓ GPU memory limit set to 90%")
 
     # class weights from train loader counts
     counts = torch.zeros(num_classes)
@@ -202,7 +272,27 @@ def main():
         loss_fn = nn.CrossEntropyLoss(weight=weights)
 
     optimizer = AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)
-    scheduler = CosineAnnealingLR(optimizer, T_max=epochs)
+    
+    # 可配置的学习率调度器
+    scheduler_name = cfg.get('scheduler', 'cosine').lower()
+    
+    if scheduler_name == 'cosine':
+        scheduler = CosineAnnealingLR(optimizer, T_max=epochs)
+    elif scheduler_name == 'step':
+        step_size = int(cfg.get('step_size', 10))
+        gamma = float(cfg.get('gamma', 0.1))
+        scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=step_size, gamma=gamma)
+    elif scheduler_name == 'exponential':
+        gamma = float(cfg.get('gamma', 0.95))
+        scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=gamma)
+    elif scheduler_name == 'none':
+        # 不使用调度器（学习率保持恒定）
+        scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lambda epoch: 1.0)
+    else:
+        print(f"[WARNING] Unknown scheduler '{scheduler_name}', using cosine")
+        scheduler = CosineAnnealingLR(optimizer, T_max=epochs)
+    
+    print(f"  - Learning rate scheduler: {scheduler_name}")
     
     # AMP只在GPU模式下启用，CPU模式自动禁用以避免警告
     device_type = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -245,6 +335,10 @@ def main():
     # 优化 4: 验证频率配置 (减少验证次数以加速训练)
     val_interval = int(cfg.get('val_interval', 1))  # 每N个epoch验证一次,默认每次都验证
     print(f"  - Validation interval: every {val_interval} epoch(s)")
+    
+    # 优化 5: last checkpoint 保存间隔（避免频繁IO）
+    save_last_interval = int(cfg.get('save_last_interval', 5))  # 默认每5个epoch保存一次
+    print(f"  - Save last checkpoint: every {save_last_interval} epoch(s)")
     
     # 初始化 CSV 日志和训练日志
     csv_path = save_dir / 'metrics_history.csv'
@@ -410,7 +504,7 @@ def main():
         })
         csv_file.flush()
         
-        # 保存 last checkpoint(包含完整配置)
+        # 保存 last checkpoint（按间隔或最后一个epoch）
         ckpt_state = {
             'model': model.state_dict(),
             'classes': class_to_idx,
@@ -425,7 +519,11 @@ def main():
                 'macro_f1': float(macro_f1)
             }
         }
-        save_checkpoint(ckpt_state, last_ckpt)
+        
+        # 按间隔保存或最后一个epoch
+        if epoch % save_last_interval == 0 or epoch == epochs:
+            save_checkpoint(ckpt_state, last_ckpt)
+            log_print(f"  [SAVE] Last checkpoint saved: {last_ckpt}")
         
         # 保存 best checkpoint
         if score > best_score:

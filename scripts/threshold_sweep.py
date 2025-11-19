@@ -104,7 +104,7 @@ def plot_threshold_curves(results, save_dir, class_name='PNEUMONIA'):
     plt.savefig(save_dir / 'threshold_metrics_curve.png', dpi=200, bbox_inches='tight')
     plt.close()
     
-    print(f"✓ Saved: {save_dir / 'threshold_metrics_curve.png'}")
+    print(f"[OK] Saved: {save_dir / 'threshold_metrics_curve.png'}")
     
     # Plot 2: Precision-Recall curve
     fig, ax = plt.subplots(figsize=(8, 8))
@@ -129,7 +129,7 @@ def plot_threshold_curves(results, save_dir, class_name='PNEUMONIA'):
     plt.savefig(save_dir / 'precision_recall_curve.png', dpi=200, bbox_inches='tight')
     plt.close()
     
-    print(f"✓ Saved: {save_dir / 'precision_recall_curve.png'}")
+    print(f"[OK] Saved: {save_dir / 'precision_recall_curve.png'}")
     
     # Plot 3: Youden's Index (optimal balance point)
     fig, ax = plt.subplots(figsize=(10, 6))
@@ -151,7 +151,7 @@ def plot_threshold_curves(results, save_dir, class_name='PNEUMONIA'):
     plt.savefig(save_dir / 'youden_index_curve.png', dpi=200, bbox_inches='tight')
     plt.close()
     
-    print(f"✓ Saved: {save_dir / 'youden_index_curve.png'}")
+    print(f"[OK] Saved: {save_dir / 'youden_index_curve.png'}")
 
 
 def find_optimal_thresholds(results):
@@ -270,9 +270,9 @@ def main():
     
     print("\n" + "="*70)
     print("\nRECOMMENDATIONS:")
-    print("  • Medical Screening (avoid missing cases): Use MIN MISS or MAX RECALL mode")
-    print("  • Balanced Clinical Use: Use BALANCED F1 or MAX YOUDEN mode")
-    print("  • Confirmatory Testing (minimize false alarms): Use HIGH PRECISION mode")
+    print("  - Medical Screening (avoid missing cases): Use MIN MISS or MAX RECALL mode")
+    print("  - Balanced Clinical Use: Use BALANCED F1 or MAX YOUDEN mode")
+    print("  - Confirmatory Testing (minimize false alarms): Use HIGH PRECISION mode")
     print("="*70 + "\n")
     
     # Plot curves
@@ -292,8 +292,8 @@ def main():
     with open(json_path, 'w', encoding='utf-8') as f:
         json.dump(output_json, f, indent=2, ensure_ascii=False)
     
-    print(f"✓ Results saved to: {json_path}")
-    print(f"\n✅ Threshold sweep analysis complete! Check {output_dir} for outputs.")
+    print(f"[OK] Results saved to: {json_path}")
+    print(f"\n[SUCCESS] Threshold sweep analysis complete! Check {output_dir} for outputs.")
 
 
 if __name__ == '__main__':

@@ -93,7 +93,7 @@ def plot_confidence_histogram(y_probs, y_true, save_path, class_names):
     plt.savefig(save_path, dpi=200, bbox_inches='tight')
     plt.close()
     
-    print(f"✓ Saved: {save_path}")
+    print(f"[OK] Saved: {save_path}")
 
 
 def plot_per_class_calibration(y_probs, y_true, save_path, class_names, n_bins=10):
@@ -158,7 +158,7 @@ def plot_per_class_calibration(y_probs, y_true, save_path, class_names, n_bins=1
     plt.savefig(save_path, dpi=200, bbox_inches='tight')
     plt.close()
     
-    print(f"✓ Saved: {save_path}")
+    print(f"[OK] Saved: {save_path}")
 
 
 def main():
@@ -248,11 +248,11 @@ def main():
         temp_scaler = TemperatureScaling()
         optimal_temp = temp_scaler.fit(logits, labels)
         
-        print(f"✓ Optimal temperature: {optimal_temp:.4f}")
+        print(f"[OK] Optimal temperature: {optimal_temp:.4f}")
         
         # Apply temperature scaling
         scaled_logits = temp_scaler(logits)
-        probs_after = F.softmax(scaled_logits, dim=1).numpy()
+        probs_after = F.softmax(scaled_logits, dim=1).detach().numpy()
         
         # Compute calibration metrics (after)
         cal_metrics_after = compute_calibration_metrics(labels_np, probs_after, n_bins=args.n_bins)
@@ -276,7 +276,7 @@ def main():
             'improvement': float(cal_metrics_before['ece'] - cal_metrics_after['ece'])
         }
         
-        print(f"✓ ECE improvement: {temp_result['improvement']:.4f}")
+        print(f"[OK] ECE improvement: {temp_result['improvement']:.4f}")
     
     # Save results to JSON
     output_json = {
@@ -291,8 +291,8 @@ def main():
     with open(json_path, 'w', encoding='utf-8') as f:
         json.dump(output_json, f, indent=2, ensure_ascii=False)
     
-    print(f"✓ Results saved to: {json_path}")
-    print(f"\n✅ Calibration analysis complete! Check {output_dir} for outputs.")
+    print(f"[OK] Results saved to: {json_path}")
+    print(f"\n[SUCCESS] Calibration analysis complete! Check {output_dir} for outputs.")
 
 
 if __name__ == '__main__':

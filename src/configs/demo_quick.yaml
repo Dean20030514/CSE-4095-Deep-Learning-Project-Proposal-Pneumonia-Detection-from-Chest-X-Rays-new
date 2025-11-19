@@ -1,0 +1,15 @@
+amp: true
+augment_level: light
+batch_size: 16
+data_root: data
+early_stopping:
+  patience: 5
+epochs: 3
+img_size: 224
+loss: weighted_ce
+lr: 0.001
+model: resnet18
+num_workers: 4
+seed: 42
+use_weighted_sampler: true
+weight_decay: 0.0001

@@ -3,7 +3,7 @@
 # Usage: .\scripts\run_full_analysis.ps1
 
 param(
-    [string]$ModelCheckpoint = "runs/model_efficientnet_b2/best.pt",
+    [string]$ModelCheckpoint = "runs/aug_aggressive/best_model.pt",
     [string]$Split = "val",
     [string]$OutputBaseDir = "reports/full_analysis"
 )
@@ -91,6 +91,7 @@ Write-Host ""
 Write-Host "[5/5] Running standard evaluation with threshold sweep..." -ForegroundColor Yellow
 python src/eval.py `
     --ckpt $ModelCheckpoint `
+    --data_root data `
     --split $Split `
     --threshold_sweep `
     --report "$OutputBaseDir/evaluation_report.json"

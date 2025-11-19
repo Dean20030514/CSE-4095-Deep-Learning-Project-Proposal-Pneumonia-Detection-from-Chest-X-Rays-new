@@ -5,7 +5,6 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 from tqdm import tqdm
-from sklearn.metrics import roc_auc_score, average_precision_score
 
 from src.utils.metrics import compute_metrics
 from src.data.datamodule import build_dataloaders
@@ -133,16 +132,18 @@ def main():
     
     # 计算 AUC 指标
     try:
+        from sklearn.metrics import roc_auc_score, average_precision_score
+        
         if num_classes == 2:
             # 二分类: 使用 pneumonia 类概率
-            roc_auc = roc_auc_score(y_true, y_probs[:, pneumonia_idx])
-            pr_auc = average_precision_score(y_true, y_probs[:, pneumonia_idx])
+            roc_auc_val = roc_auc_score(y_true, y_probs[:, pneumonia_idx])
+            pr_auc_val = average_precision_score(y_true, y_probs[:, pneumonia_idx])
         else:
             # 多分类: macro average
-            roc_auc = roc_auc_score(y_true, y_probs, multi_class='ovr', average='macro')
-            pr_auc = average_precision_score(y_true, y_probs, average='macro')
-        metrics['roc_auc'] = float(roc_auc)
-        metrics['pr_auc'] = float(pr_auc)
+            roc_auc_val = roc_auc_score(y_true, y_probs, multi_class='ovr', average='macro')
+            pr_auc_val = average_precision_score(y_true, y_probs, average='macro')
+        metrics['roc_auc'] = float(roc_auc_val)
+        metrics['pr_auc'] = float(pr_auc_val)
     except Exception as e:
         print(f"Warning: Could not compute AUC metrics: {e}")
         metrics['roc_auc'] = None
@@ -169,6 +170,72 @@ def main():
             'max_recall_mode': max_recall_result,
             'balanced_mode': max_f1_result
         }
+        
+        # 生成 PR 和 ROC 曲线可视化
+        try:
+            import matplotlib.pyplot as plt
+            from sklearn.metrics import precision_recall_curve, roc_curve, auc
+            
+            # 获取 PNEUMONIA 类的概率
+            pneumonia_probs = y_probs[:, pneumonia_idx]
+            y_true_binary = (y_true == pneumonia_idx).astype(int)
+            
+            # 创建输出目录
+            ckpt_path = Path(args.ckpt)
+            viz_dir = ckpt_path.parent / 'evaluation_curves'
+            viz_dir.mkdir(parents=True, exist_ok=True)
+            
+            # 1. Precision-Recall 曲线
+            precisions, recalls, _pr_thresholds = precision_recall_curve(y_true_binary, pneumonia_probs)
+            pr_auc_score = auc(recalls, precisions)
+            
+            _fig1, ax = plt.subplots(figsize=(10, 8))
+            ax.plot(recalls, precisions, linewidth=2, label=f'PR Curve (AUC={pr_auc_score:.4f})')
+            ax.scatter([max_recall_result['recall']], [max_recall_result['precision']], 
+                      s=200, c='red', marker='*', label=f"Max Recall (thresh={max_recall_result['threshold']:.2f})", zorder=5)
+            ax.scatter([max_f1_result['recall']], [max_f1_result['precision']], 
+                      s=200, c='green', marker='D', label=f"Max F1 (thresh={max_f1_result['threshold']:.2f})", zorder=5)
+            
+            ax.set_xlabel('Recall (Sensitivity)', fontsize=14, fontweight='bold')
+            ax.set_ylabel('Precision (PPV)', fontsize=14, fontweight='bold')
+            ax.set_title(f'Precision-Recall Curve - {args.split.upper()} Set\nPNEUMONIA Detection', 
+                        fontsize=16, fontweight='bold')
+            ax.legend(fontsize=12, loc='best')
+            ax.grid(True, alpha=0.3)
+            ax.set_xlim([0.0, 1.05])
+            ax.set_ylim([0.0, 1.05])
+            
+            pr_curve_path = viz_dir / f'pr_curve_{args.split}.png'
+            plt.savefig(pr_curve_path, dpi=200, bbox_inches='tight')
+            plt.close()
+            print(f"\n[OK] PR curve saved: {pr_curve_path}")
+            
+            # 2. ROC 曲线
+            fpr, tpr, _roc_thresholds = roc_curve(y_true_binary, pneumonia_probs)
+            roc_auc_score_val = auc(fpr, tpr)
+            
+            _fig2, ax = plt.subplots(figsize=(10, 8))
+            ax.plot(fpr, tpr, linewidth=2, label=f'ROC Curve (AUC={roc_auc_score_val:.4f})')
+            ax.plot([0, 1], [0, 1], 'k--', linewidth=1, label='Random Classifier')
+            
+            ax.set_xlabel('False Positive Rate (1 - Specificity)', fontsize=14, fontweight='bold')
+            ax.set_ylabel('True Positive Rate (Sensitivity)', fontsize=14, fontweight='bold')
+            ax.set_title(f'ROC Curve - {args.split.upper()} Set\nPNEUMONIA Detection', 
+                        fontsize=16, fontweight='bold')
+            ax.legend(fontsize=12, loc='lower right')
+            ax.grid(True, alpha=0.3)
+            ax.set_xlim([0.0, 1.0])
+            ax.set_ylim([0.0, 1.05])
+            
+            roc_curve_path = viz_dir / f'roc_curve_{args.split}.png'
+            plt.savefig(roc_curve_path, dpi=200, bbox_inches='tight')
+            plt.close()
+            print(f"[OK] ROC curve saved: {roc_curve_path}")
+            
+        except ImportError:
+            print("\n[WARNING] matplotlib not available, skipping curve visualization")
+        except Exception as e:
+            print(f"\n[WARNING] Failed to generate curves: {e}")
     
     # 打印结果
     print(f"\n{'='*60}")
@@ -190,22 +257,25 @@ def main():
     print(cm)
     print(f"{'='*60}")
     
-    # 保存报告
-    report_path = Path(args.report)
-    report_path.parent.mkdir(parents=True, exist_ok=True)
-    
-    report_data = {
-        'split': args.split,
-        'checkpoint': str(args.ckpt),
-        'model_config': {'model': model_name, 'img_size': img_size},
-        'metrics': metrics,
-        'confusion_matrix': cm.tolist()
-    }
-    
-    with open(report_path, 'w', encoding='utf-8') as f:
-        json.dump(report_data, f, indent=2, ensure_ascii=False)
-    
-    print(f"\nReport saved to: {report_path}")
+    # 保存报告（如果指定了输出路径）
+    if args.report:
+        report_path = Path(args.report)
+        report_path.parent.mkdir(parents=True, exist_ok=True)
+        
+        report_data = {
+            'split': args.split,
+            'checkpoint': str(args.ckpt),
+            'model_config': {'model': model_name, 'img_size': img_size},
+            'metrics': metrics,
+            'confusion_matrix': cm.tolist()
+        }
+        
+        with open(report_path, 'w', encoding='utf-8') as f:
+            json.dump(report_data, f, indent=2, ensure_ascii=False)
+        
+        print(f"\n[OK] Report saved to: {report_path}")
+    else:
+        print("\n[INFO] No report path specified (use --report to save JSON)")
 
 
 if __name__ == '__main__':

@@ -120,9 +120,18 @@ def visualize_gradcam_sample(
     
     # Overlay
     cam_norm = (cam - cam.min()) / (cam.max() - cam.min() + 1e-8)
-    heatmap_colored = cm.get_cmap('jet')(cam_norm)[:, :, :3]
     
+    # Resize heatmap to match original image size
     img_array = np.array(image.convert('RGB')).astype(float) / 255.0
+    h, w = img_array.shape[:2]
+    
+    # Resize cam to original image dimensions
+    from PIL import Image as PILImage
+    cam_resized = np.array(PILImage.fromarray((cam_norm * 255).astype(np.uint8)).resize((w, h), PILImage.BILINEAR)) / 255.0
+    
+    # Apply colormap
+    heatmap_colored = cm.jet(cam_resized)[:, :, :3]
+    
     overlay = 0.6 * img_array + 0.4 * heatmap_colored
     overlay = np.clip(overlay, 0, 1)
     
@@ -239,8 +248,8 @@ def main():
             pred_label = logits.argmax(dim=1).item()
             pred_class_name = idx_to_class[pred_label]
         
-        # Generate Grad-CAM
-        cam = gradcam(logits, pred_label)
+        # Generate Grad-CAM (pass image tensor, not logits!)
+        cam = gradcam(img_tensor, pred_label)
         cam_np = cam.cpu().numpy()
         
         # Compute statistics
@@ -312,8 +321,8 @@ def main():
     with open(output_path, 'w') as f:
         json.dump(full_results, f, indent=2)
     
-    print(f"\n✓ Results saved to: {output_path}")
-    print(f"✓ Visualizations saved to: {vis_dir}/")
+    print(f"\n[OK] Results saved to: {output_path}")
+    print(f"[OK] Visualizations saved to: {vis_dir}/")
     
     # Print summary
     print("\n" + "=" * 80)
@@ -347,18 +356,18 @@ def main():
     
     # Interpretation
     print("\n" + "=" * 80)
-    print("💡 INTERPRETATION")
+    print("INTERPRETATION")
     print("=" * 80)
     
     lung_focus = summary['overall']['mean_lung_focus_ratio']
     if lung_focus > 0.75:
-        print("✓ EXCELLENT: Model strongly focuses on lung regions (>75%)")
+        print("[EXCELLENT] Model strongly focuses on lung regions (>75%)")
     elif lung_focus > 0.60:
-        print("✓ GOOD: Model predominantly focuses on lung regions (60-75%)")
+        print("[GOOD] Model predominantly focuses on lung regions (60-75%)")
     elif lung_focus > 0.45:
-        print("⚠️  FAIR: Model shows moderate lung region focus (45-60%)")
+        print("[FAIR] Model shows moderate lung region focus (45-60%)")
     else:
-        print("⚠️  CONCERN: Model may not be focusing on clinically relevant regions (<45%)")
+        print("[WARNING] Model may not be focusing on clinically relevant regions (<45%)")
     
     print("\n" + "=" * 80)
 

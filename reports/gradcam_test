@@ -1,0 +1,403 @@
+{
+  "summary": {
+    "overall": {
+      "n_samples": 20,
+      "mean_cam_activation": 0.18316836953163146,
+      "mean_lung_focus_ratio": 0.4269787648607635,
+      "mean_center_activation_ratio": 1.466310365498066,
+      "std_lung_focus_ratio": 0.33534137939611686
+    },
+    "correct_predictions": {
+      "n_samples": 19,
+      "mean_cam_activation": 0.1865446336175266,
+      "mean_lung_focus_ratio": 0.3996208373227525,
+      "mean_center_activation_ratio": 1.4026494606545097,
+      "std_lung_focus_ratio": 0.3215638971470263
+    },
+    "incorrect_predictions": {
+      "n_samples": 1,
+      "mean_cam_activation": 0.11901935189962387,
+      "mean_lung_focus_ratio": 0.9467793880829736,
+      "mean_center_activation_ratio": 2.6758675575256348,
+      "std_lung_focus_ratio": 0.0
+    },
+    "by_class": {
+      "NORMAL": {
+        "n_samples": 9,
+        "mean_cam_activation": 0.15271915247042975,
+        "mean_lung_focus_ratio": 0.440014736934182,
+        "mean_center_activation_ratio": 1.540976322359509,
+        "std_lung_focus_ratio": 0.30074665382367494
+      },
+      "PNEUMONIA": {
+        "n_samples": 11,
+        "mean_cam_activation": 0.20808136530897833,
+        "mean_lung_focus_ratio": 0.41631296952796665,
+        "mean_center_activation_ratio": 1.4052200371568853,
+        "std_lung_focus_ratio": 0.3608398141745282
+      }
+    }
+  },
+  "individual_samples": [
+    {
+      "image": "NORMAL-5661793-0002.jpeg",
+      "true_class": "NORMAL",
+      "predicted_class": "NORMAL",
+      "correct": true,
+      "cam_statistics": {
+        "mean_activation": 0.1224648579955101,
+        "max_activation": 1.0,
+        "std_activation": 0.19943565130233765,
+        "activation_concentration": 0.08101399739583333,
+        "center_activation_ratio": 2.0883567333221436
+      },
+      "lung_coverage": {
+        "lung_region_focus_ratio": 0.877281098274839,
+        "lung_region_mean_activation": 0.23144176602363586,
+        "non_lung_region_mean_activation": 0.04309360682964325
+      }
+    },
+    {
+      "image": "IM-0367-0001.jpeg",
+      "true_class": "NORMAL",
+      "predicted_class": "NORMAL",
+      "correct": true,
+      "cam_statistics": {
+        "mean_activation": 0.17409254610538483,
+        "max_activation": 1.0,
+        "std_activation": 0.22963644564151764,
+        "activation_concentration": 0.10378011067708333,
+        "center_activation_ratio": 1.3303877115249634
+      },
+      "lung_coverage": {
+        "lung_region_focus_ratio": 0.22707965758333196,
+        "lung_region_mean_activation": 0.2145586907863617,
+        "non_lung_region_mean_activation": 0.14461974799633026
+      }
+    },
+    {
+      "image": "BACTERIA-5150733-0005.jpeg",
+      "true_class": "PNEUMONIA",
+      "predicted_class": "PNEUMONIA",
+      "correct": true,
+      "cam_statistics": {
+        "mean_activation": 0.18202251195907593,
+        "max_activation": 1.0,
+        "std_activation": 0.17389428615570068,
+        "activation_concentration": 0.028584798177083332,
+        "center_activation_ratio": 1.0714714527130127
+      },
+      "lung_coverage": {
+        "lung_region_focus_ratio": 0.0,
+        "lung_region_mean_activation": 0.183363139629364,
+        "non_lung_region_mean_activation": 0.18104608356952667
+      }
+    },
+    {
+      "image": "BACTERIA-4003398-0001.jpeg",
+      "true_class": "PNEUMONIA",
+      "predicted_class": "PNEUMONIA",
+      "correct": true,
+      "cam_statistics": {
+        "mean_activation": 0.16255265474319458,
+        "max_activation": 1.0,
+        "std_activation": 0.2369992733001709,
+        "activation_concentration": 0.11638726128472222,
+        "center_activation_ratio": 2.135023593902588
+      },
+      "lung_coverage": {
+        "lung_region_focus_ratio": 0.8926115837309797,
+        "lung_region_mean_activation": 0.29105374217033386,
+        "non_lung_region_mean_activation": 0.06896133720874786
+      }
+    },
+    {
+      "image": "BACTERIA-3399638-0002.jpeg",
+      "true_class": "PNEUMONIA",
+      "predicted_class": "PNEUMONIA",
+      "correct": true,
+      "cam_statistics": {
+        "mean_activation": 0.19727525115013123,
+        "max_activation": 1.0,
+        "std_activation": 0.1866530179977417,
+        "activation_concentration": 0.07703993055555555,
+        "center_activation_ratio": 1.3543312549591064
+      },
+      "lung_coverage": {
+        "lung_region_focus_ratio": 0.0031690140845042525,
+        "lung_region_mean_activation": 0.21731194853782654,
+        "non_lung_region_mean_activation": 0.18268193304538727
+      }
+    },
+    {
+      "image": "NORMAL-8714174-0001.jpeg",
+      "true_class": "NORMAL",
+      "predicted_class": "NORMAL",
+      "correct": true,
+      "cam_statistics": {
+        "mean_activation": 0.0943487286567688,
+        "max_activation": 1.0,
+        "std_activation": 0.1940826177597046,
+        "activation_concentration": 0.057291666666666664,
+        "center_activation_ratio": 0.4481531083583832
+      },
+      "lung_coverage": {
+        "lung_region_focus_ratio": 0.001420454545452864,
+        "lung_region_mean_activation": 0.04520780220627785,
+        "non_lung_region_mean_activation": 0.1301395744085312
+      }
+    },
+    {
+      "image": "NORMAL-4056615-0002.jpeg",
+      "true_class": "NORMAL",
+      "predicted_class": "NORMAL",
+      "correct": true,
+      "cam_statistics": {
+        "mean_activation": 0.17259281873703003,
+        "max_activation": 1.0,
+        "std_activation": 0.2165869176387787,
+        "activation_concentration": 0.11274549696180555,
+        "center_activation_ratio": 2.169583797454834
+      },
+      "lung_coverage": {
+        "lung_region_focus_ratio": 0.9524210526310061,
+        "lung_region_mean_activation": 0.3266957104206085,
+        "non_lung_region_mean_activation": 0.06035488471388817
+      }
+    },
+    {
+      "image": "person718_virus_1316.jpeg",
+      "true_class": "PNEUMONIA",
+      "predicted_class": "PNEUMONIA",
+      "correct": true,
+      "cam_statistics": {
+        "mean_activation": 0.13192661106586456,
+        "max_activation": 1.0,
+        "std_activation": 0.192282572388649,
+        "activation_concentration": 0.06986490885416667,
+        "center_activation_ratio": 0.7392914891242981
+      },
+      "lung_coverage": {
+        "lung_region_focus_ratio": 0.4275868763342772,
+        "lung_region_mean_activation": 0.1471635103225708,
+        "non_lung_region_mean_activation": 0.12082911282777786
+      }
+    },
+    {
+      "image": "NORMAL-2646923-0001.jpeg",
+      "true_class": "NORMAL",
+      "predicted_class": "NORMAL",
+      "correct": true,
+      "cam_statistics": {
+        "mean_activation": 0.127886563539505,
+        "max_activation": 1.0,
+        "std_activation": 0.19010446965694427,
+        "activation_concentration": 0.06365966796875,
+        "center_activation_ratio": 1.5762687921524048
+      },
+      "lung_coverage": {
+        "lung_region_focus_ratio": 0.5231703419617308,
+        "lung_region_mean_activation": 0.2019321322441101,
+        "non_lung_region_mean_activation": 0.07395690679550171
+      }
+    },
+    {
+      "image": "person1147_virus_1917.jpeg",
+      "true_class": "PNEUMONIA",
+      "predicted_class": "PNEUMONIA",
+      "correct": true,
+      "cam_statistics": {
+        "mean_activation": 0.24010443687438965,
+        "max_activation": 1.0,
+        "std_activation": 0.21939149498939514,
+        "activation_concentration": 0.1395602756076389,
+        "center_activation_ratio": 1.2719085216522217
+      },
+      "lung_coverage": {
+        "lung_region_focus_ratio": 0.40113708149064525,
+        "lung_region_mean_activation": 0.268917441368103,
+        "non_lung_region_mean_activation": 0.21911902725696564
+      }
+    },
+    {
+      "image": "IM-0404-0001.jpeg",
+      "true_class": "NORMAL",
+      "predicted_class": "NORMAL",
+      "correct": true,
+      "cam_statistics": {
+        "mean_activation": 0.2265632450580597,
+        "max_activation": 1.0,
+        "std_activation": 0.25068992376327515,
+        "activation_concentration": 0.1631401909722222,
+        "center_activation_ratio": 1.629473090171814
+      },
+      "lung_coverage": {
+        "lung_region_focus_ratio": 0.4640422347853076,
+        "lung_region_mean_activation": 0.3181726932525635,
+        "non_lung_region_mean_activation": 0.15984132885932922
+      }
+    },
+    {
+      "image": "IM-0392-0001.jpeg",
+      "true_class": "NORMAL",
+      "predicted_class": "NORMAL",
+      "correct": true,
+      "cam_statistics": {
+        "mean_activation": 0.10662291944026947,
+        "max_activation": 1.0,
+        "std_activation": 0.1886301189661026,
+        "activation_concentration": 0.051676432291666664,
+        "center_activation_ratio": 1.372944951057434
+      },
+      "lung_coverage": {
+        "lung_region_focus_ratio": 0.12270341207332978,
+        "lung_region_mean_activation": 0.13678722083568573,
+        "non_lung_region_mean_activation": 0.084653340280056
+      }
+    },
+    {
+      "image": "NORMAL-3108988-0001.jpeg",
+      "true_class": "NORMAL",
+      "predicted_class": "NORMAL",
+      "correct": true,
+      "cam_statistics": {
+        "mean_activation": 0.17868079245090485,
+        "max_activation": 1.0,
+        "std_activation": 0.21896913647651672,
+        "activation_concentration": 0.09901258680555555,
+        "center_activation_ratio": 1.450344443321228
+      },
+      "lung_coverage": {
+        "lung_region_focus_ratio": 0.3234931506847099,
+        "lung_region_mean_activation": 0.24918651580810547,
+        "non_lung_region_mean_activation": 0.1273292899131775
+      }
+    },
+    {
+      "image": "BACTERIA-3322717-0002.jpeg",
+      "true_class": "PNEUMONIA",
+      "predicted_class": "PNEUMONIA",
+      "correct": true,
+      "cam_statistics": {
+        "mean_activation": 0.4224747121334076,
+        "max_activation": 1.0,
+        "std_activation": 0.30268624424934387,
+        "activation_concentration": 0.3846842447916667,
+        "center_activation_ratio": 1.4570571184158325
+      },
+      "lung_coverage": {
+        "lung_region_focus_ratio": 0.663969395670146,
+        "lung_region_mean_activation": 0.5662462115287781,
+        "non_lung_region_mean_activation": 0.31776148080825806
+      }
+    },
+    {
+      "image": "BACTERIA-364560-0001.jpeg",
+      "true_class": "PNEUMONIA",
+      "predicted_class": "PNEUMONIA",
+      "correct": true,
+      "cam_statistics": {
+        "mean_activation": 0.23435483872890472,
+        "max_activation": 1.0,
+        "std_activation": 0.27997392416000366,
+        "activation_concentration": 0.19779459635416666,
+        "center_activation_ratio": 2.2424142360687256
+      },
+      "lung_coverage": {
+        "lung_region_focus_ratio": 0.9053692655829029,
+        "lung_region_mean_activation": 0.4295521378517151,
+        "non_lung_region_mean_activation": 0.09218669682741165
+      }
+    },
+    {
+      "image": "person409_virus_820.jpeg",
+      "true_class": "PNEUMONIA",
+      "predicted_class": "PNEUMONIA",
+      "correct": true,
+      "cam_statistics": {
+        "mean_activation": 0.25242918729782104,
+        "max_activation": 1.0,
+        "std_activation": 0.21330928802490234,
+        "activation_concentration": 0.14335123697916666,
+        "center_activation_ratio": 0.7478201985359192
+      },
+      "lung_coverage": {
+        "lung_region_focus_ratio": 0.13463903869801558,
+        "lung_region_mean_activation": 0.18474596738815308,
+        "non_lung_region_mean_activation": 0.30172500014305115
+      }
+    },
+    {
+      "image": "IM-0382-0001.jpeg",
+      "true_class": "NORMAL",
+      "predicted_class": "NORMAL",
+      "correct": true,
+      "cam_statistics": {
+        "mean_activation": 0.17121990025043488,
+        "max_activation": 1.0,
+        "std_activation": 0.23115913569927216,
+        "activation_concentration": 0.1065334743923611,
+        "center_activation_ratio": 1.8032742738723755
+      },
+      "lung_coverage": {
+        "lung_region_focus_ratio": 0.46852122986793016,
+        "lung_region_mean_activation": 0.2649174630641937,
+        "non_lung_region_mean_activation": 0.10297707468271255
+      }
+    },
+    {
+      "image": "person855_virus_1500.jpeg",
+      "true_class": "PNEUMONIA",
+      "predicted_class": "PNEUMONIA",
+      "correct": true,
+      "cam_statistics": {
+        "mean_activation": 0.18467944860458374,
+        "max_activation": 1.0,
+        "std_activation": 0.22099730372428894,
+        "activation_concentration": 0.1241726345486111,
+        "center_activation_ratio": 1.031599760055542
+      },
+      "lung_coverage": {
+        "lung_region_focus_ratio": 0.13615510649910642,
+        "lung_region_mean_activation": 0.14782126247882843,
+        "non_lung_region_mean_activation": 0.21152439713478088
+      }
+    },
+    {
+      "image": "person1121_virus_1846.jpeg",
+      "true_class": "PNEUMONIA",
+      "predicted_class": "PNEUMONIA",
+      "correct": true,
+      "cam_statistics": {
+        "mean_activation": 0.16205601394176483,
+        "max_activation": 1.0,
+        "std_activation": 0.21423929929733276,
+        "activation_concentration": 0.07118055555555555,
+        "center_activation_ratio": 0.7306352257728577
+      },
+      "lung_coverage": {
+        "lung_region_focus_ratio": 0.06802591463408153,
+        "lung_region_mean_activation": 0.11178258806467056,
+        "non_lung_region_mean_activation": 0.19867168366909027
+      }
+    },
+    {
+      "image": "BACTERIA-2763145-0001.jpeg",
+      "true_class": "PNEUMONIA",
+      "predicted_class": "NORMAL",
+      "correct": false,
+      "cam_statistics": {
+        "mean_activation": 0.11901935189962387,
+        "max_activation": 1.0,
+        "std_activation": 0.20979544520378113,
+        "activation_concentration": 0.084228515625,
+        "center_activation_ratio": 2.6758675575256348
+      },
+      "lung_coverage": {
+        "lung_region_focus_ratio": 0.9467793880829736,
+        "lung_region_mean_activation": 0.23664666712284088,
+        "non_lung_region_mean_activation": 0.03334774821996689
+      }
+    }
+  ]
+}
