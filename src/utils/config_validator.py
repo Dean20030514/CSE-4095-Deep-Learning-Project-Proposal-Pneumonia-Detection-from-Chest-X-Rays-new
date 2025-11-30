@@ -2,10 +2,21 @@
 配置文件验证模块
 
 提供配置文件的完整性和有效性检查，防止运行时错误。
+支持 GPU 显存估算和配置继承。
 """
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Tuple
 import yaml
 from pathlib import Path
+
+
+# 模型的参数量和推荐 batch size（基于 8GB GPU）
+MODEL_SPECS = {
+    'resnet18': {'params_m': 11.7, 'base_memory_mb': 500, 'recommended_batch_8gb': 64},
+    'resnet50': {'params_m': 25.6, 'base_memory_mb': 1000, 'recommended_batch_8gb': 32},
+    'efficientnet_b0': {'params_m': 5.3, 'base_memory_mb': 400, 'recommended_batch_8gb': 64},
+    'efficientnet_b2': {'params_m': 9.2, 'base_memory_mb': 600, 'recommended_batch_8gb': 48},
+    'densenet121': {'params_m': 8.0, 'base_memory_mb': 700, 'recommended_batch_8gb': 48},
+}
 
 
 class ConfigValidator:
@@ -223,6 +234,120 @@ class ConfigValidator:
             raise ValueError("配置验证失败:\n" + "\n".join(errors))
         
         print("[OK] 配置验证通过")
+    
+    @classmethod
+    def estimate_gpu_memory(cls, config: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        估算 GPU 显存需求。
+        
+        Args:
+            config: 配置字典
+        
+        Returns:
+            包含显存估算信息的字典
+        """
+        model = config.get('model', 'resnet18').lower()
+        img_size = config.get('img_size', 224)
+        batch_size = config.get('batch_size', 16)
+        use_amp = config.get('amp', False)
+        
+        # 获取模型规格
+        specs = MODEL_SPECS.get(model, MODEL_SPECS['resnet18'])
+        
+        # 估算显存（MB）
+        # 公式：base_memory + (batch_size * img_size^2 * 3 * 4 / 1e6) * factor
+        # factor 考虑激活值、梯度等
+        pixel_memory = batch_size * (img_size ** 2) * 3 * 4 / 1e6  # 输入张量
+        activation_factor = 4.0  # 激活值和梯度大约是输入的 4 倍
+        
+        estimated_memory = specs['base_memory_mb'] + pixel_memory * activation_factor
+        
+        # AMP 可以减少约 40% 显存
+        if use_amp:
+            estimated_memory *= 0.6
+        
+        # 推荐配置
+        recommended_batch = specs['recommended_batch_8gb']
+        if img_size > 256:
+            recommended_batch = int(recommended_batch * (256 / img_size) ** 2)
+        
+        return {
+            'model': model,
+            'estimated_memory_mb': round(estimated_memory),
+            'estimated_memory_gb': round(estimated_memory / 1024, 2),
+            'recommended_batch_8gb': recommended_batch,
+            'current_batch_size': batch_size,
+            'amp_enabled': use_amp,
+            'warning': estimated_memory > 7000,  # 接近 8GB 时警告
+            'suggestions': cls._get_memory_suggestions(estimated_memory, batch_size, use_amp)
+        }
+    
+    @classmethod
+    def _get_memory_suggestions(cls, memory_mb: float, batch_size: int, use_amp: bool) -> List[str]:
+        """生成显存优化建议"""
+        suggestions = []
+        
+        if memory_mb > 10000:
+            suggestions.append(f"⚠️ 预计显存超过 10GB，建议减小 batch_size（当前: {batch_size}）")
+        
+        if memory_mb > 7000 and not use_amp:
+            suggestions.append("💡 启用混合精度训练 (amp: true) 可减少约 40% 显存")
+        
+        if batch_size > 32 and memory_mb > 6000:
+            suggestions.append(f"💡 考虑减小 batch_size 到 16-32 以提高稳定性")
+        
+        return suggestions
+    
+    @classmethod
+    def check_cli_conflicts(cls, config: Dict[str, Any], cli_args: Dict[str, Any]) -> List[str]:
+        """
+        检查命令行参数与配置文件的冲突。
+        
+        Args:
+            config: 配置文件字典
+            cli_args: 命令行参数字典
+        
+        Returns:
+            冲突警告列表
+        """
+        conflicts = []
+        
+        # 检查覆盖的参数
+        override_keys = ['epochs', 'batch_size', 'lr', 'model', 'augment_level']
+        
+        for key in override_keys:
+            if cli_args.get(key) is not None and key in config:
+                cli_val = cli_args[key]
+                cfg_val = config[key]
+                if cli_val != cfg_val:
+                    conflicts.append(
+                        f"ℹ️ '{key}' 将被命令行参数覆盖: {cfg_val} → {cli_val}"
+                    )
+        
+        return conflicts
+    
+    @classmethod
+    def merge_configs(cls, base_config: Dict[str, Any], override_config: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        合并两个配置字典（支持配置继承）。
+        
+        Args:
+            base_config: 基础配置
+            override_config: 覆盖配置
+        
+        Returns:
+            合并后的配置
+        """
+        result = base_config.copy()
+        
+        for key, value in override_config.items():
+            if key in result and isinstance(result[key], dict) and isinstance(value, dict):
+                # 递归合并字典
+                result[key] = cls.merge_configs(result[key], value)
+            else:
+                result[key] = value
+        
+        return result
     
     @classmethod
     def validate_file(cls, config_path: str) -> Dict[str, Any]:

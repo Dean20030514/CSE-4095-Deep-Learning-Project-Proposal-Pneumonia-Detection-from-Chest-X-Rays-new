@@ -45,8 +45,9 @@ def build_model(name: str, num_classes: int) -> Tuple[nn.Module, int]:
             in_feats = net.classifier[-1].in_features
             net.classifier[-1] = nn.Linear(in_feats, num_classes)
             return net, 224
-        except Exception:
+        except (ImportError, AttributeError) as e:
             # Fallback to resnet18 if efficientnet is unavailable
+            print(f"[WARNING] EfficientNet-B0 not available ({e}), falling back to ResNet18")
             net = models.resnet18(weights=models.ResNet18_Weights.DEFAULT)
             in_feats = net.fc.in_features
             net.fc = nn.Linear(in_feats, num_classes)
@@ -57,8 +58,9 @@ def build_model(name: str, num_classes: int) -> Tuple[nn.Module, int]:
             in_feats = net.classifier[-1].in_features
             net.classifier[-1] = nn.Linear(in_feats, num_classes)
             return net, 260  # EfficientNet-B2 default input size
-        except Exception:
+        except (ImportError, AttributeError) as e:
             # Fallback to efficientnet_b0
+            print(f"[WARNING] EfficientNet-B2 not available ({e}), falling back to EfficientNet-B0")
             net = models.efficientnet_b0(weights=models.EfficientNet_B0_Weights.DEFAULT)
             in_feats = net.classifier[-1].in_features
             net.classifier[-1] = nn.Linear(in_feats, num_classes)

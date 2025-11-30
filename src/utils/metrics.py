@@ -15,12 +15,17 @@ def compute_metrics(y_true: np.ndarray, y_pred: np.ndarray, labels: Dict[int, st
     Args:
         y_true: 真实标签 (N,)
         y_pred: 预测标签 (N,)
-        labels: 类别索引到名称的映射 {idx: name}
+        labels: 类别索引到名称的映射，格式为 {idx: class_name}，
+                例如 {0: 'NORMAL', 1: 'PNEUMONIA'}
         y_probs: 预测概率 (N, C), 可选,用于计算 AUC 等指标
     
     Returns:
         metrics: 包含各种指标的字典
         cm: 混淆矩阵
+    
+    Example:
+        >>> labels = {0: 'NORMAL', 1: 'PNEUMONIA'}
+        >>> metrics, cm = compute_metrics(y_true, y_pred, labels, y_probs)
     """
     report = classification_report(y_true, y_pred, output_dict=True, zero_division=0)
     cm = confusion_matrix(y_true, y_pred, labels=sorted(labels.keys()))

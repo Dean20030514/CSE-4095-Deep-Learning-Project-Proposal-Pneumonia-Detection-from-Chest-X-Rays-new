@@ -13,8 +13,18 @@ import pandas as pd
 DISCLAIMER = "⚠️ For research/education only. Not a medical device. Do not use for clinical diagnosis."
 
 
-def load_model(ckpt_path: Path):
-    """Load model from checkpoint with config"""
+@st.cache_resource
+def load_model(ckpt_path: str):
+    """
+    Load model from checkpoint with config.
+    Uses Streamlit caching to avoid reloading on every interaction.
+    
+    Args:
+        ckpt_path: Path to checkpoint file (string for cache compatibility)
+    
+    Returns:
+        Tuple of (model, idx_to_class, class_to_idx, img_size, model_name)
+    """
     from src.models.factory import build_model
     ckpt = torch.load(ckpt_path, map_location='cpu', weights_only=False)
     cfg = ckpt.get('config', {})
@@ -32,60 +42,93 @@ def load_model(ckpt_path: Path):
     return model, idx_to_class, class_to_idx, img_size, model_name
 
 
+def get_gradcam_target_layer(model, model_name: str) -> str:
+    """
+    根据模型架构自动获取 GradCAM 的目标层名称。
+    
+    Args:
+        model: PyTorch 模型
+        model_name: 模型名称字符串
+    
+    Returns:
+        目标层的名称字符串
+    """
+    model_name_lower = model_name.lower()
+    
+    # ResNet 系列
+    if 'resnet' in model_name_lower:
+        return 'layer4'
+    
+    # EfficientNet 系列 - 使用最后一个卷积层 (features.8 是最后的卷积块)
+    if 'efficientnet' in model_name_lower:
+        # EfficientNet 的 features 是 Sequential，最后一层索引为 8
+        # features.8 包含最后的 MBConv 块
+        if hasattr(model, 'features') and len(model.features) > 0:
+            # 遍历找到最后一个包含卷积的层
+            for idx in reversed(range(len(model.features))):
+                layer_name = f'features.{idx}'
+                layer = dict(model.named_modules()).get(layer_name)
+                if layer is not None:
+                    # 检查是否包含卷积操作
+                    for child in layer.modules():
+                        if isinstance(child, torch.nn.Conv2d):
+                            return layer_name
+            # 回退到 features.8
+            return 'features.8'
+        return 'features'
+    
+    # DenseNet 系列
+    if 'densenet' in model_name_lower:
+        return 'features.denseblock4'
+    
+    # VGG 系列
+    if 'vgg' in model_name_lower:
+        return 'features'
+    
+    # 默认回退
+    return 'layer4'
+
+
 def generate_gradcam(model, image_tensor, target_class, model_name):
     """Generate Grad-CAM heatmap"""
     from src.utils.gradcam import GradCAM
     
-    # Determine target layer based on model architecture
-    target_layer = None
+    # 自动获取目标层名称
+    target_layer = get_gradcam_target_layer(model, model_name)
     
-    try:
-        if 'resnet' in model_name.lower():
-            # ResNet: use layer4 (last residual block)
-            target_layer = 'layer4'
-        elif 'efficientnet' in model_name.lower():
-            # EfficientNet: use the last convolutional block
-            # Try to find the correct layer name
-            if hasattr(model, 'features'):
-                # Count the number of blocks
-                num_blocks = len(model.features)
-                target_layer = f'features.{num_blocks - 1}'
-            else:
-                target_layer = 'features'
-        elif 'densenet' in model_name.lower():
-            # DenseNet: use features.denseblock4
-            target_layer = 'features.denseblock4'
-        else:
-            # Default fallback
-            target_layer = 'layer4'
-        
-        # Try to generate Grad-CAM
-        gradcam = GradCAM(model, target_layer)
-        model.eval()
-        image_tensor.requires_grad = True
-        # Pass image_tensor, not logits!
-        cam = gradcam(image_tensor, target_class)
-        return cam.cpu().numpy()
-        
-    except Exception as e:
-        # If failed, try alternative methods
-        alternative_layers = ['features.7', 'features.8', 'layer4', 'features']
-        
-        for alt_layer in alternative_layers:
-            try:
-                gradcam = GradCAM(model, alt_layer)
-                model.eval()
-                image_tensor.requires_grad = True
-                # Pass image_tensor, not logits!
-                cam = gradcam(image_tensor, target_class)
-                return cam.cpu().numpy()
-            except:
-                continue
-        
-        # If all attempts failed
-        st.warning(f"⚠️ Could not generate Grad-CAM for {model_name}. "
-                  f"This model architecture may not be fully supported for visualization.")
-        return None
+    # 按优先级尝试不同的层名称
+    layers_to_try = [target_layer]
+    
+    # 根据模型类型添加备选层
+    model_name_lower = model_name.lower()
+    if 'efficientnet' in model_name_lower:
+        layers_to_try.extend(['features.8', 'features.7', 'features.6'])
+    elif 'resnet' in model_name_lower:
+        layers_to_try.extend(['layer4', 'layer3'])
+    elif 'densenet' in model_name_lower:
+        layers_to_try.extend(['features.denseblock4', 'features.denseblock3'])
+    
+    # 添加通用备选
+    layers_to_try.extend(['features', 'layer4'])
+    
+    # 去重保持顺序
+    seen = set()
+    layers_to_try = [x for x in layers_to_try if not (x in seen or seen.add(x))]
+    
+    for layer_name in layers_to_try:
+        try:
+            gradcam = GradCAM(model, layer_name)
+            model.eval()
+            image_tensor.requires_grad = True
+            cam = gradcam(image_tensor, target_class)
+            return cam.cpu().numpy()
+        except (ValueError, RuntimeError, KeyError):
+            continue
+    
+    # 所有尝试都失败
+    st.warning(f"⚠️ Could not generate Grad-CAM for {model_name}. "
+              f"This model architecture may not be fully supported for visualization.")
+    return None
 
 
 def overlay_heatmap(image, heatmap, alpha=0.4):
@@ -183,10 +226,11 @@ def main():
     selected_model = model_options[selected_display]
     ckpt_path = Path(selected_model['path'])
     
-    # Load model
+    # Load model (cached by Streamlit)
     try:
         with st.spinner(f"Loading model: {selected_model['name']}..."):
-            model, idx_to_class, class_to_idx, img_size, model_name = load_model(ckpt_path)
+            # 传入字符串路径以支持缓存
+            model, idx_to_class, class_to_idx, img_size, model_name = load_model(str(ckpt_path))
             pneumonia_idx = class_to_idx.get('PNEUMONIA', class_to_idx.get('pneumonia', 1))
     except Exception as e:
         st.error(f"❌ Failed to load model: {e}")

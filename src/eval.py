@@ -105,9 +105,11 @@ def main():
     # 找到 PNEUMONIA 类索引
     pneumonia_idx = class_to_idx.get('PNEUMONIA', class_to_idx.get('pneumonia', 1))
 
-    # 构建 dataloader (Windows multiprocessing fix: num_workers=0)
+    # 构建 dataloader (跨平台兼容: Windows使用num_workers=0, 其他平台使用多进程)
+    import platform
+    num_workers = 0 if platform.system() == 'Windows' else 4
     loaders, _ = build_dataloaders(args.data_root, img_size=img_size, batch_size=batch_size, 
-                                    use_weighted_sampler=False, num_workers=0)
+                                    use_weighted_sampler=False, num_workers=num_workers)
     loader = loaders[args.split]
 
     # 收集预测结果

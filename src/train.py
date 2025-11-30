@@ -1,6 +1,10 @@
 import argparse
 import csv
+import logging
 import random
+import shutil
+import time
+from contextlib import ExitStack
 from pathlib import Path
 from typing import Dict
 
@@ -8,7 +12,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 from torch.optim import AdamW
-from torch.optim.lr_scheduler import CosineAnnealingLR
+from torch.optim.lr_scheduler import CosineAnnealingLR, LinearLR, SequentialLR
 from torch.amp import autocast, GradScaler
 from tqdm import tqdm
 import yaml
@@ -150,7 +154,7 @@ def main():
             print("[OK] Configuration is valid!")
             return
     except ValueError as e:
-        print(f"[ERROR] Configuration validation failed:")
+        print("[ERROR] Configuration validation failed:")
         print(str(e))
         if args.validate_config:
             return
@@ -211,12 +215,16 @@ def main():
     if augment_level == 'aggressive':
         augment_level = 'heavy'
 
+    # 获取增强配置（如果存在）
+    aug_config = cfg.get('augmentation', None)
+    
     loaders, class_to_idx = build_dataloaders(
         args.data_root, img_size, batch_size, 
         num_workers=num_workers, 
         use_weighted_sampler=use_sampler,
         use_albumentations=use_albumentations,
-        augment_level=augment_level
+        augment_level=augment_level,
+        aug_config=aug_config
     )
     num_classes = len(class_to_idx)
     # idx_to_class = {v: k for k, v in class_to_idx.items()}  # Unused for now
@@ -231,7 +239,7 @@ def main():
     
     # 优化 3: 使用 channels_last 内存格式 (更高效的内存访问模式)
     model = model.to(memory_format=torch.channels_last)
-    print(f"  - Memory format: channels_last")
+    print("  - Memory format: channels_last")
     
     # 优化 6: 显存优化模式（可选）
     memory_efficient = cfg.get('memory_efficient', False)
@@ -259,15 +267,15 @@ def main():
             torch.cuda.set_per_process_memory_fraction(0.9, device=device)
             print("  ✓ GPU memory limit set to 90%")
 
-    # class weights from train loader counts
-    counts = torch.zeros(num_classes)
-    for _, targets in loaders['train']:
-        for t in targets:
-            counts[t] += 1
+    # class weights from train dataset targets (高效方式，无需遍历整个数据加载器)
+    train_targets = np.array(loaders['train'].dataset.targets)
+    counts = torch.bincount(torch.tensor(train_targets), minlength=num_classes).float()
     weights = (counts.sum() / (num_classes * counts.clamp(min=1))).to(device)
 
     if loss_name.startswith('focal'):
-        loss_fn = FocalLoss(gamma=float(cfg.get('focal', {}).get('gamma', 1.5)), weight=weights)
+        # 兼容两种配置格式: focal.gamma 或 focal_gamma
+        gamma = cfg.get('focal', {}).get('gamma', cfg.get('focal_gamma', 1.5))
+        loss_fn = FocalLoss(gamma=float(gamma), weight=weights)
     else:
         loss_fn = nn.CrossEntropyLoss(weight=weights)
 
@@ -275,24 +283,42 @@ def main():
     
     # 可配置的学习率调度器
     scheduler_name = cfg.get('scheduler', 'cosine').lower()
+    warmup_epochs = int(cfg.get('warmup_epochs', 0))
     
+    # 创建主调度器
     if scheduler_name == 'cosine':
-        scheduler = CosineAnnealingLR(optimizer, T_max=epochs)
+        main_scheduler = CosineAnnealingLR(optimizer, T_max=max(1, epochs - warmup_epochs))
     elif scheduler_name == 'step':
         step_size = int(cfg.get('step_size', 10))
         gamma = float(cfg.get('gamma', 0.1))
-        scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=step_size, gamma=gamma)
+        main_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=step_size, gamma=gamma)
     elif scheduler_name == 'exponential':
         gamma = float(cfg.get('gamma', 0.95))
-        scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=gamma)
+        main_scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=gamma)
     elif scheduler_name == 'none':
         # 不使用调度器（学习率保持恒定）
-        scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lambda epoch: 1.0)
+        main_scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lambda epoch: 1.0)
     else:
         print(f"[WARNING] Unknown scheduler '{scheduler_name}', using cosine")
-        scheduler = CosineAnnealingLR(optimizer, T_max=epochs)
+        main_scheduler = CosineAnnealingLR(optimizer, T_max=max(1, epochs - warmup_epochs))
     
-    print(f"  - Learning rate scheduler: {scheduler_name}")
+    # 添加学习率预热
+    if warmup_epochs > 0:
+        warmup_scheduler = LinearLR(
+            optimizer, 
+            start_factor=0.1, 
+            end_factor=1.0,
+            total_iters=warmup_epochs
+        )
+        scheduler = SequentialLR(
+            optimizer, 
+            schedulers=[warmup_scheduler, main_scheduler], 
+            milestones=[warmup_epochs]
+        )
+        print(f"  - Learning rate scheduler: {scheduler_name} with {warmup_epochs} warmup epochs")
+    else:
+        scheduler = main_scheduler
+        print(f"  - Learning rate scheduler: {scheduler_name}")
     
     # AMP只在GPU模式下启用，CPU模式自动禁用以避免警告
     device_type = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -321,7 +347,7 @@ def main():
             start_epoch = resume_ckpt.get('epoch', 0) + 1
             best_score = resume_ckpt.get('best_score', -1.0)
             print(f"[RESUME] Resumed from epoch {start_epoch-1}, best_score={best_score:.4f}")
-        except Exception as e:
+        except (RuntimeError, KeyError, FileNotFoundError) as e:
             print(f"[WARNING] Failed to load checkpoint: {e}")
             print("[WARNING] Starting training from scratch...")
     
@@ -344,233 +370,253 @@ def main():
     csv_path = save_dir / 'metrics_history.csv'
     train_log_path = save_dir / 'train.log'
     
-    csv_file = open(csv_path, 'w', newline='', encoding='utf-8')
-    csv_writer = csv.DictWriter(csv_file, fieldnames=[
-        'epoch', 'train_loss', 'val_acc', 'val_loss',
-        'pneumonia_recall', 'pneumonia_precision', 'pneumonia_f1',
-        'normal_recall', 'macro_recall', 'macro_f1', 'lr'
-    ])
-    csv_writer.writeheader()
-    csv_file.flush()
-    
     # 保存配置文件副本到输出目录
-    import shutil
     config_copy_path = save_dir / 'config.yaml'
     shutil.copy(args.config, config_copy_path)
     
-    # 设置训练日志
-    log_file = open(train_log_path, 'w', encoding='utf-8')
+    # 设置日志系统
+    logger = logging.getLogger('pneumonia_training')
+    logger.setLevel(logging.INFO)
+    logger.handlers.clear()  # 清除已有 handlers
+    
+    # 文件 handler
+    file_handler = logging.FileHandler(train_log_path, encoding='utf-8')
+    file_handler.setFormatter(logging.Formatter('%(asctime)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S'))
+    logger.addHandler(file_handler)
+    
+    # 控制台 handler（处理 Windows 编码问题）
+    class SafeStreamHandler(logging.StreamHandler):
+        def emit(self, record):
+            try:
+                super().emit(record)
+            except UnicodeEncodeError:
+                record.msg = record.msg.encode('ascii', errors='ignore').decode('ascii')
+                super().emit(record)
+    
+    console_handler = SafeStreamHandler()
+    console_handler.setFormatter(logging.Formatter('%(message)s'))
+    logger.addHandler(console_handler)
     
     def log_print(msg):
         """同时输出到控制台和日志文件"""
-        try:
-            print(msg)
-        except UnicodeEncodeError:
-            # Windows gbk 编码无法处理 emoji，使用 ascii 替代并忽略特殊字符
-            print(msg.encode('ascii', errors='ignore').decode('ascii'))
-        log_file.write(msg + '\n')
-        log_file.flush()
+        logger.info(msg)
     
-    log_print(f"\n{'='*60}")
-    log_print(f"Experiment: {save_dir.name}")
-    log_print(f"Output directory: {save_dir}")
-    log_print(f"{'='*60}")
-    log_print(f"Training config: {model_name} @ {img_size}px, {epochs} epochs, lr={lr}, loss={loss_name}")
-    log_print(f"Augmentation: {'albumentations' if use_albumentations else f'torchvision ({augment_level})'}")
-    amp_status = f"{use_amp_actual}" + (" (CPU: disabled)" if use_amp and not use_amp_actual else "")
-    log_print(f"Using device: {device}, AMP: {amp_status}, Seed: {seed}")
-    log_print(f"Pneumonia class index: {pneumonia_idx}")
-    if args.resume:
-        log_print(f"Resume: Starting from epoch {start_epoch}")
-    log_print(f"{'='*60}\n")
+    # 使用 ExitStack 管理文件句柄，确保异常时也能正确关闭
+    with ExitStack() as stack:
+        csv_file = stack.enter_context(open(csv_path, 'w', newline='', encoding='utf-8'))
+        csv_writer = csv.DictWriter(csv_file, fieldnames=[
+            'epoch', 'train_loss', 'val_acc', 'val_loss',
+            'pneumonia_recall', 'pneumonia_precision', 'pneumonia_f1',
+            'normal_recall', 'macro_recall', 'macro_f1', 'lr'
+        ])
+        csv_writer.writeheader()
+        csv_file.flush()
+        
+        log_print(f"\n{'='*60}")
+        log_print(f"Experiment: {save_dir.name}")
+        log_print(f"Output directory: {save_dir}")
+        log_print(f"{'='*60}")
+        log_print(f"Training config: {model_name} @ {img_size}px, {epochs} epochs, lr={lr}, loss={loss_name}")
+        log_print(f"Augmentation: {'albumentations' if use_albumentations else f'torchvision ({augment_level})'}")
+        amp_status = f"{use_amp_actual}" + (" (CPU: disabled)" if use_amp and not use_amp_actual else "")
+        log_print(f"Using device: {device}, AMP: {amp_status}, Seed: {seed}")
+        log_print(f"Pneumonia class index: {pneumonia_idx}")
+        if args.resume:
+            log_print(f"Resume: Starting from epoch {start_epoch}")
+        log_print(f"{'='*60}\n")
 
-    # 记录训练开始时间
-    import time
-    training_start_time = time.time()
+        # 记录训练开始时间
+        training_start_time = time.time()
+        
+        # 梯度裁剪配置
+        max_grad_norm = float(cfg.get('max_grad_norm', 1.0))
+        use_grad_clip = cfg.get('gradient_clipping', True)
 
-    # 训练循环
-    for epoch in range(start_epoch, epochs + 1):
-        model.train()
-        running_loss = 0.0
-        train_samples = 0
-        
-        for images, targets in tqdm(loaders['train'], desc=f"Train {epoch}/{epochs}"):
-            images = images.to(device, memory_format=torch.channels_last)
-            targets = targets.to(device)
+        # 训练循环
+        for epoch in range(start_epoch, epochs + 1):
+            model.train()
+            running_loss = 0.0
+            train_samples = 0
             
-            optimizer.zero_grad(set_to_none=True)
-            
-            with autocast(device_type, enabled=use_amp_actual):
-                logits = model(images)
-                loss = loss_fn(logits, targets)
-            
-            scaler.scale(loss).backward()
-            scaler.step(optimizer)
-            scaler.update()
-            
-            running_loss += loss.item() * images.size(0)
-            train_samples += images.size(0)
-        
-        train_loss = running_loss / max(1, train_samples)
-        scheduler.step()
-        current_lr = optimizer.param_groups[0]['lr']
-
-        # 根据 val_interval 决定是否进行验证
-        should_validate = (epoch % val_interval == 0) or (epoch == epochs)
-        
-        if not should_validate:
-            # 跳过验证,只打印训练损失
-            log_print(f"Epoch {epoch}/{epochs}: Train Loss: {train_loss:.4f} | LR: {current_lr:.6f} (validation skipped)")
-            continue
-        
-        # Validation loop: compute detailed metrics including pneumonia recall
-        model.eval()
-        all_preds = []
-        all_targets = []
-        val_loss = 0.0
-        val_samples = 0
-        
-        with torch.no_grad():
-            for images, targets in tqdm(loaders['val'], desc=f"Val {epoch}/{epochs}"):
+            for images, targets in tqdm(loaders['train'], desc=f"Train {epoch}/{epochs}"):
                 images = images.to(device, memory_format=torch.channels_last)
                 targets = targets.to(device)
+                
+                optimizer.zero_grad(set_to_none=True)
                 
                 with autocast(device_type, enabled=use_amp_actual):
                     logits = model(images)
                     loss = loss_fn(logits, targets)
                 
-                preds = logits.argmax(dim=1)
-                all_preds.extend(preds.cpu().numpy())
-                all_targets.extend(targets.cpu().numpy())
-                val_loss += loss.item() * images.size(0)
-                val_samples += images.size(0)
-        
-        val_loss = val_loss / max(1, val_samples)
-        all_preds = np.array(all_preds)
-        all_targets = np.array(all_targets)
-        
-        # 计算整体准确率
-        val_acc = (all_preds == all_targets).mean()
-        
-        # 计算 per-class metrics
-        from sklearn.metrics import precision_recall_fscore_support
-        precisions, recalls, f1s, _ = precision_recall_fscore_support(
-            all_targets, all_preds, average=None, zero_division=0
-        )
-        
-        # 提取 PNEUMONIA 类指标
-        pneumonia_recall = recalls[pneumonia_idx] if pneumonia_idx < len(recalls) else 0.0
-        pneumonia_precision = precisions[pneumonia_idx] if pneumonia_idx < len(precisions) else 0.0
-        pneumonia_f1 = f1s[pneumonia_idx] if pneumonia_idx < len(f1s) else 0.0
-        
-        # 计算 NORMAL 类指标(假设是另一个类)
-        normal_idx = 1 - pneumonia_idx if num_classes == 2 else 0
-        normal_recall = recalls[normal_idx] if normal_idx < len(recalls) else 0.0
-        
-        # 宏平均
-        macro_recall = recalls.mean()
-        macro_f1 = f1s.mean()
-        
-        # 根据配置选择 best metric
-        if args.save_best_by == 'pneumonia_recall':
-            score = pneumonia_recall
-        elif args.save_best_by == 'macro_f1':
-            score = macro_f1
-        elif args.save_best_by == 'macro_recall':
-            score = macro_recall
-        else:
-            score = val_acc
-        
-        # 打印指标
-        log_print(f"Epoch {epoch}/{epochs}:")
-        log_print(f"  Train Loss: {train_loss:.4f} | Val Loss: {val_loss:.4f} | Val Acc: {val_acc:.4f}")
-        log_print(f"  Pneumonia - Recall: {pneumonia_recall:.4f}, Precision: {pneumonia_precision:.4f}, F1: {pneumonia_f1:.4f}")
-        log_print(f"  Normal Recall: {normal_recall:.4f} | Macro Recall: {macro_recall:.4f} | Macro F1: {macro_f1:.4f}")
-        log_print(f"  LR: {current_lr:.6f} | Best {args.save_best_by}: {best_score:.4f}")
-        
-        # 写入 CSV
-        csv_writer.writerow({
-            'epoch': epoch,
-            'train_loss': f"{train_loss:.6f}",
-            'val_acc': f"{val_acc:.6f}",
-            'val_loss': f"{val_loss:.6f}",
-            'pneumonia_recall': f"{pneumonia_recall:.6f}",
-            'pneumonia_precision': f"{pneumonia_precision:.6f}",
-            'pneumonia_f1': f"{pneumonia_f1:.6f}",
-            'normal_recall': f"{normal_recall:.6f}",
-            'macro_recall': f"{macro_recall:.6f}",
-            'macro_f1': f"{macro_f1:.6f}",
-            'lr': f"{current_lr:.8f}"
-        })
-        csv_file.flush()
-        
-        # 保存 last checkpoint（按间隔或最后一个epoch）
-        ckpt_state = {
-            'model': model.state_dict(),
-            'classes': class_to_idx,
-            'config': cfg,
-            'epoch': epoch,
-            'optimizer': optimizer.state_dict(),
-            'scheduler': scheduler.state_dict(),
-            'best_score': best_score,
-            'metrics': {
-                'val_acc': float(val_acc),
-                'pneumonia_recall': float(pneumonia_recall),
-                'macro_f1': float(macro_f1)
+                scaler.scale(loss).backward()
+                
+                # 混合精度训练的梯度裁剪
+                if use_grad_clip:
+                    scaler.unscale_(optimizer)
+                    torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=max_grad_norm)
+                
+                scaler.step(optimizer)
+                scaler.update()
+                
+                running_loss += loss.item() * images.size(0)
+                train_samples += images.size(0)
+            
+            train_loss = running_loss / max(1, train_samples)
+            scheduler.step()
+            current_lr = optimizer.param_groups[0]['lr']
+
+            # 根据 val_interval 决定是否进行验证
+            should_validate = (epoch % val_interval == 0) or (epoch == epochs)
+            
+            if not should_validate:
+                # 跳过验证,只打印训练损失
+                log_print(f"Epoch {epoch}/{epochs}: Train Loss: {train_loss:.4f} | LR: {current_lr:.6f} (validation skipped)")
+                continue
+            
+            # Validation loop: compute detailed metrics including pneumonia recall
+            model.eval()
+            all_preds = []
+            all_targets = []
+            val_loss = 0.0
+            val_samples = 0
+            
+            with torch.no_grad():
+                for images, targets in tqdm(loaders['val'], desc=f"Val {epoch}/{epochs}"):
+                    images = images.to(device, memory_format=torch.channels_last)
+                    targets = targets.to(device)
+                    
+                    with autocast(device_type, enabled=use_amp_actual):
+                        logits = model(images)
+                        loss = loss_fn(logits, targets)
+                    
+                    preds = logits.argmax(dim=1)
+                    all_preds.extend(preds.cpu().numpy())
+                    all_targets.extend(targets.cpu().numpy())
+                    val_loss += loss.item() * images.size(0)
+                    val_samples += images.size(0)
+            
+            val_loss = val_loss / max(1, val_samples)
+            all_preds = np.array(all_preds)
+            all_targets = np.array(all_targets)
+            
+            # 计算整体准确率
+            val_acc = (all_preds == all_targets).mean()
+            
+            # 计算 per-class metrics
+            from sklearn.metrics import precision_recall_fscore_support
+            precisions, recalls, f1s, _ = precision_recall_fscore_support(
+                all_targets, all_preds, average=None, zero_division=0
+            )
+            
+            # 提取 PNEUMONIA 类指标
+            pneumonia_recall = recalls[pneumonia_idx] if pneumonia_idx < len(recalls) else 0.0
+            pneumonia_precision = precisions[pneumonia_idx] if pneumonia_idx < len(precisions) else 0.0
+            pneumonia_f1 = f1s[pneumonia_idx] if pneumonia_idx < len(f1s) else 0.0
+            
+            # 计算 NORMAL 类指标(假设是另一个类)
+            normal_idx = 1 - pneumonia_idx if num_classes == 2 else 0
+            normal_recall = recalls[normal_idx] if normal_idx < len(recalls) else 0.0
+            
+            # 宏平均
+            macro_recall = recalls.mean()
+            macro_f1 = f1s.mean()
+            
+            # 根据配置选择 best metric
+            if args.save_best_by == 'pneumonia_recall':
+                score = pneumonia_recall
+            elif args.save_best_by == 'macro_f1':
+                score = macro_f1
+            elif args.save_best_by == 'macro_recall':
+                score = macro_recall
+            else:
+                score = val_acc
+            
+            # 打印指标
+            log_print(f"Epoch {epoch}/{epochs}:")
+            log_print(f"  Train Loss: {train_loss:.4f} | Val Loss: {val_loss:.4f} | Val Acc: {val_acc:.4f}")
+            log_print(f"  Pneumonia - Recall: {pneumonia_recall:.4f}, Precision: {pneumonia_precision:.4f}, F1: {pneumonia_f1:.4f}")
+            log_print(f"  Normal Recall: {normal_recall:.4f} | Macro Recall: {macro_recall:.4f} | Macro F1: {macro_f1:.4f}")
+            log_print(f"  LR: {current_lr:.6f} | Best {args.save_best_by}: {best_score:.4f}")
+            
+            # 写入 CSV
+            csv_writer.writerow({
+                'epoch': epoch,
+                'train_loss': f"{train_loss:.6f}",
+                'val_acc': f"{val_acc:.6f}",
+                'val_loss': f"{val_loss:.6f}",
+                'pneumonia_recall': f"{pneumonia_recall:.6f}",
+                'pneumonia_precision': f"{pneumonia_precision:.6f}",
+                'pneumonia_f1': f"{pneumonia_f1:.6f}",
+                'normal_recall': f"{normal_recall:.6f}",
+                'macro_recall': f"{macro_recall:.6f}",
+                'macro_f1': f"{macro_f1:.6f}",
+                'lr': f"{current_lr:.8f}"
+            })
+            csv_file.flush()
+            
+            # 保存 last checkpoint（按间隔或最后一个epoch）
+            ckpt_state = {
+                'model': model.state_dict(),
+                'classes': class_to_idx,
+                'config': cfg,
+                'epoch': epoch,
+                'optimizer': optimizer.state_dict(),
+                'scheduler': scheduler.state_dict(),
+                'best_score': best_score,
+                'metrics': {
+                    'val_acc': float(val_acc),
+                    'pneumonia_recall': float(pneumonia_recall),
+                    'macro_f1': float(macro_f1)
+                }
             }
-        }
+            
+            # 按间隔保存或最后一个epoch
+            if epoch % save_last_interval == 0 or epoch == epochs:
+                save_checkpoint(ckpt_state, last_ckpt)
+                log_print(f"  [SAVE] Last checkpoint saved: {last_ckpt}")
+            
+            # 保存 best checkpoint
+            if score > best_score:
+                best_score = score
+                save_checkpoint(ckpt_state, best_ckpt)
+                log_print(f"  [BEST] Saved best checkpoint: {best_ckpt}")
+                no_improve = 0
+            else:
+                no_improve += 1
+                if patience > 0 and no_improve >= patience:
+                    log_print(f"\nEarly stopping at epoch {epoch} (no improvement in {no_improve} epochs)")
+                    break
         
-        # 按间隔保存或最后一个epoch
-        if epoch % save_last_interval == 0 or epoch == epochs:
-            save_checkpoint(ckpt_state, last_ckpt)
-            log_print(f"  [SAVE] Last checkpoint saved: {last_ckpt}")
+        # 训练完成,打印最终总结
+        training_end_time = time.time()
         
-        # 保存 best checkpoint
-        if score > best_score:
-            best_score = score
-            save_checkpoint(ckpt_state, best_ckpt)
-            log_print(f"  [BEST] Saved best checkpoint: {best_ckpt}")
-            no_improve = 0
-        else:
-            no_improve += 1
-            if patience > 0 and no_improve >= patience:
-                log_print(f"\nEarly stopping at epoch {epoch} (no improvement in {no_improve} epochs)")
-                break
-    
-    # 训练完成,打印最终总结
-    import time
-    training_end_time = time.time()
-    
-    log_print(f"\n{'='*60}")
-    log_print(f"✅ Training completed!")
-    log_print(f"{'='*60}")
-    log_print(f"Best {args.save_best_by}: {best_score:.4f}")
-    log_print(f"Total epochs trained: {epoch}")
-    if 'training_start_time' in locals():
+        log_print("\n" + "=" * 60)
+        log_print("Training completed!")
+        log_print("=" * 60)
+        log_print(f"Best {args.save_best_by}: {best_score:.4f}")
+        log_print(f"Total epochs trained: {epoch}")
         total_time = training_end_time - training_start_time
         log_print(f"Total training time: {total_time/3600:.2f} hours")
+        
+        log_print("\nOutput files:")
+        log_print(f"  - Best model: {best_ckpt}")
+        log_print(f"  - Last model: {last_ckpt}")
+        log_print(f"  - Metrics CSV: {csv_path}")
+        log_print(f"  - Training log: {train_log_path}")
+        log_print(f"  - Config copy: {config_copy_path}")
+        
+        log_print("\nNext steps:")
+        log_print(f"  1. Evaluate: python src/eval.py --ckpt {best_ckpt} --data_root {args.data_root} --split test")
+        log_print(f"  2. Analyze: python scripts/error_analysis.py --ckpt {best_ckpt}")
+        log_print("  3. Demo: streamlit run src/app/streamlit_app.py")
+        log_print("=" * 60)
     
-    log_print(f"\n📁 Output files:")
-    log_print(f"  - Best model: {best_ckpt}")
-    log_print(f"  - Last model: {last_ckpt}")
-    log_print(f"  - Metrics CSV: {csv_path}")
-    log_print(f"  - Training log: {train_log_path}")
-    log_print(f"  - Config copy: {config_copy_path}")
-    
-    log_print(f"\n🎯 Next steps:")
-    log_print(f"  1. Evaluate: python src/eval.py --ckpt {best_ckpt} --data_root {args.data_root} --split test")
-    log_print(f"  2. Analyze: python scripts/error_analysis.py --ckpt {best_ckpt}")
-    log_print(f"  3. Demo: streamlit run src/app/streamlit_app.py")
-    log_print(f"{'='*60}")
-    
-    # 关闭文件
-    csv_file.close()
-    log_file.close()
+    # 文件已通过 ExitStack 自动关闭
     
     try:
-        print(f"\n✅ Training completed successfully!")
+        print("\n[OK] Training completed successfully!")
     except UnicodeEncodeError:
-        print(f"\n[OK] Training completed successfully!")
+        print("\n[OK] Training completed successfully!")
 
 
 if __name__ == '__main__':

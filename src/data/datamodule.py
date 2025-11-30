@@ -60,16 +60,51 @@ class AlbumentationsTransform:
     """
     Picklable wrapper for albumentations transforms.
     This class can be serialized by multiprocessing on Windows.
+    
+    支持从配置字典读取增强参数。
     """
-    def __init__(self, img_size: int, is_train: bool = True):
+    def __init__(self, img_size: int, is_train: bool = True, aug_config: Optional[Dict] = None):
+        """
+        初始化数据增强转换。
+        
+        Args:
+            img_size: 目标图像大小
+            is_train: 是否为训练模式
+            aug_config: 可选的增强配置字典，格式如：
+                {
+                    'horizontal_flip': 0.5,
+                    'rotation_degrees': 15,
+                    'brightness': 0.2,
+                    'contrast': 0.2,
+                    'blur': 0.2,
+                    'clahe': 0.3
+                }
+        """
+        # 默认增强参数
+        default_config = {
+            'horizontal_flip': 0.5,
+            'rotation_degrees': 15,
+            'brightness': 0.2,
+            'contrast': 0.2,
+            'blur': 0.2,
+            'clahe': 0.3
+        }
+        
+        # 合并用户配置
+        config = {**default_config, **(aug_config or {})}
+        
         if is_train:
             self.transform = A.Compose([
                 A.Resize(img_size, img_size),
-                A.HorizontalFlip(p=0.5),
-                A.Rotate(limit=15, p=0.5),
-                A.RandomBrightnessContrast(brightness_limit=0.2, contrast_limit=0.2, p=0.5),
-                A.GaussianBlur(blur_limit=(3, 5), p=0.2),
-                A.CLAHE(clip_limit=2.0, p=0.3),
+                A.HorizontalFlip(p=config.get('horizontal_flip', 0.5)),
+                A.Rotate(limit=config.get('rotation_degrees', 15), p=0.5),
+                A.RandomBrightnessContrast(
+                    brightness_limit=config.get('brightness', 0.2), 
+                    contrast_limit=config.get('contrast', 0.2), 
+                    p=0.5
+                ),
+                A.GaussianBlur(blur_limit=(3, 5), p=config.get('blur', 0.2)),
+                A.CLAHE(clip_limit=2.0, p=config.get('clahe', 0.3)),
                 A.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
                 ToTensorV2()
             ])
@@ -87,12 +122,17 @@ class AlbumentationsTransform:
         return self.transform(image=img)['image']
 
 
-def _albumentations_transforms(img_size: int, is_train: bool = True):
+def _albumentations_transforms(img_size: int, is_train: bool = True, aug_config: Optional[Dict] = None):
     """
     Create albumentations-based transforms (stronger augmentation).
     Returns a picklable transform object for Windows multiprocessing compatibility.
+    
+    Args:
+        img_size: 目标图像大小
+        is_train: 是否为训练模式
+        aug_config: 可选的增强配置字典
     """
-    return AlbumentationsTransform(img_size, is_train)
+    return AlbumentationsTransform(img_size, is_train, aug_config)
 
 
 def _default_transforms(img_size: int, augment_level: str = 'medium'):
@@ -153,7 +193,7 @@ def _make_samplers(train_dataset) -> Optional[WeightedRandomSampler]:
 
 def build_dataloaders(data_root: str, img_size: int, batch_size: int, num_workers: int = 4,
                       use_weighted_sampler: bool = True, use_albumentations: bool = True,
-                      augment_level: str = 'medium') -> Tuple[Dict[str, DataLoader], Dict[str, int]]:
+                      augment_level: str = 'medium', aug_config: Optional[Dict] = None) -> Tuple[Dict[str, DataLoader], Dict[str, int]]:
     """
     Build train/val/test dataloaders.
     
@@ -184,8 +224,8 @@ def build_dataloaders(data_root: str, img_size: int, batch_size: int, num_worker
     # Choose transform strategy
     if use_albumentations and ALBUMENTATIONS_AVAILABLE:
         print("Using albumentations for data augmentation")
-        train_tf = _albumentations_transforms(img_size, is_train=True)
-        val_tf = _albumentations_transforms(img_size, is_train=False)
+        train_tf = _albumentations_transforms(img_size, is_train=True, aug_config=aug_config)
+        val_tf = _albumentations_transforms(img_size, is_train=False, aug_config=aug_config)
     else:
         print(f"Using torchvision transforms (augment_level={augment_level})")
         train_tf, val_tf = _default_transforms(img_size, augment_level)
