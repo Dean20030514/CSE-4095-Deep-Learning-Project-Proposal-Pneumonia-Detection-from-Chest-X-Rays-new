@@ -312,12 +312,33 @@ def main():
             model.load_state_dict(resume_ckpt['model'])
             optimizer.load_state_dict(resume_ckpt.get('optimizer', optimizer.state_dict()))
             scheduler.load_state_dict(resume_ckpt.get('scheduler', scheduler.state_dict()))
+            
+            # 加载 AMP scaler 状态
+            if 'scaler' in resume_ckpt:
+                scaler.load_state_dict(resume_ckpt['scaler'])
+            
             start_epoch = resume_ckpt.get('epoch', 0) + 1
             best_score = resume_ckpt.get('best_score', -1.0)
+            no_improve = resume_ckpt.get('no_improve', 0)
+            
+            # 恢复随机状态以确保完全可复现
+            if 'rng_state' in resume_ckpt:
+                rng_state = resume_ckpt['rng_state']
+                if rng_state.get('python'):
+                    random.setstate(rng_state['python'])
+                if rng_state.get('numpy'):
+                    np.random.set_state(rng_state['numpy'])
+                if rng_state.get('torch'):
+                    torch.set_rng_state(rng_state['torch'])
+                if rng_state.get('cuda') and torch.cuda.is_available():
+                    torch.cuda.set_rng_state_all(rng_state['cuda'])
+                print("[RESUME] Random states restored for reproducibility")
+            
             print(f"[RESUME] Resumed from epoch {start_epoch-1}, best_score={best_score:.4f}")
         except (RuntimeError, KeyError, FileNotFoundError) as e:
             print(f"[WARNING] Failed to load checkpoint: {e}")
             print("[WARNING] Starting training from scratch...")
+            no_improve = 0
     
     # 优先使用配置文件中的 output_dir,否则使用命令行参数的 save_dir
     output_dir = cfg.get('output_dir', args.save_dir)
@@ -399,6 +420,11 @@ def main():
         # 梯度裁剪配置
         max_grad_norm = float(cfg.get('max_grad_norm', 1.0))
         use_grad_clip = cfg.get('gradient_clipping', True)
+        
+        # 梯度累积配置
+        accumulation_steps = int(cfg.get('gradient_accumulation_steps', 1))
+        if accumulation_steps > 1:
+            log_print(f"  - Gradient accumulation: {accumulation_steps} steps (effective batch: {batch_size * accumulation_steps})")
 
         # 训练循环
         for epoch in range(start_epoch, epochs + 1):
@@ -406,27 +432,33 @@ def main():
             running_loss = 0.0
             train_samples = 0
             
-            for images, targets in tqdm(loaders['train'], desc=f"Train {epoch}/{epochs}"):
+            for step, (images, targets) in enumerate(tqdm(loaders['train'], desc=f"Train {epoch}/{epochs}")):
                 images = images.to(device, memory_format=torch.channels_last)
                 targets = targets.to(device)
-                
-                optimizer.zero_grad(set_to_none=True)
                 
                 with autocast(device_type, dtype=amp_dtype, enabled=use_amp_actual):
                     logits = model(images)
                     loss = loss_fn(logits, targets)
+                    # 梯度累积：缩放损失
+                    if accumulation_steps > 1:
+                        loss = loss / accumulation_steps
                 
                 scaler.scale(loss).backward()
                 
-                # 混合精度训练的梯度裁剪
-                if use_grad_clip:
-                    scaler.unscale_(optimizer)
-                    torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=max_grad_norm)
+                # 梯度累积：只在累积步数后更新
+                if (step + 1) % accumulation_steps == 0 or (step + 1) == len(loaders['train']):
+                    # 混合精度训练的梯度裁剪
+                    if use_grad_clip:
+                        scaler.unscale_(optimizer)
+                        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=max_grad_norm)
+                    
+                    scaler.step(optimizer)
+                    scaler.update()
+                    optimizer.zero_grad(set_to_none=True)
                 
-                scaler.step(optimizer)
-                scaler.update()
-                
-                running_loss += loss.item() * images.size(0)
+                # 记录原始损失（未缩放）
+                actual_loss = loss.item() * accumulation_steps if accumulation_steps > 1 else loss.item()
+                running_loss += actual_loss * images.size(0)
                 train_samples += images.size(0)
             
             train_loss = running_loss / max(1, train_samples)
@@ -535,6 +567,7 @@ def main():
                 tensorboard_writer.add_scalar('Learning_rate', current_lr, epoch)
             
             # 保存 last checkpoint（按间隔或最后一个epoch）
+            # 完整的断点续训支持：保存所有必要状态
             ckpt_state = {
                 'model': model.state_dict(),
                 'classes': class_to_idx,
@@ -542,11 +575,20 @@ def main():
                 'epoch': epoch,
                 'optimizer': optimizer.state_dict(),
                 'scheduler': scheduler.state_dict(),
+                'scaler': scaler.state_dict(),  # AMP scaler 状态
                 'best_score': best_score,
+                'no_improve': no_improve,  # early stopping 计数
                 'metrics': {
                     'val_acc': float(val_acc),
                     'pneumonia_recall': float(pneumonia_recall),
                     'macro_f1': float(macro_f1)
+                },
+                # 保存随机状态以确保完全可复现
+                'rng_state': {
+                    'python': random.getstate(),
+                    'numpy': np.random.get_state(),
+                    'torch': torch.get_rng_state(),
+                    'cuda': torch.cuda.get_rng_state_all() if torch.cuda.is_available() else None,
                 }
             }
             

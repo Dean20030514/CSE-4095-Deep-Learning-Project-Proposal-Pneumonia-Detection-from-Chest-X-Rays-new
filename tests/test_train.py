@@ -9,7 +9,8 @@ import torch.nn as nn
 import tempfile
 from pathlib import Path
 
-from src.train import FocalLoss, set_seed, save_checkpoint
+from src.models.losses import FocalLoss
+from src.train import set_seed, save_checkpoint
 
 
 class TestFocalLoss:

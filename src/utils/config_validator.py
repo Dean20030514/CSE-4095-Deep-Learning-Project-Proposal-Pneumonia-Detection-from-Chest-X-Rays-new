@@ -60,6 +60,11 @@ class ConfigValidator:
         'allow_nondeterministic': bool,  # 新增：性能优化选项
         'allow_tf32': bool,  # 新增：TF32 选项
         'memory_efficient': bool,  # 新增：显存优化选项
+        'gradient_accumulation_steps': int,  # 新增：梯度累积步数
+        'gradient_clipping': bool,  # 新增：梯度裁剪
+        'max_grad_norm': float,  # 新增：最大梯度范数
+        'bfloat16': bool,  # 新增：bfloat16 支持
+        'use_tensorboard': bool,  # 新增：TensorBoard 支持
     }
     
     # 有效值的枚举
@@ -76,17 +81,21 @@ class ConfigValidator:
     VALID_SAMPLERS = ['weighted_random', 'random', 'none']
     
     @classmethod
-    def validate(cls, config: Dict[str, Any]) -> None:
+    def validate(cls, config: Dict[str, Any]) -> List[str]:
         """
         验证配置文件的完整性和有效性
         
         Args:
             config: 配置字典
         
+        Returns:
+            警告信息列表（不阻止验证通过）
+        
         Raises:
             ValueError: 配置无效时抛出详细错误信息
         """
         errors: List[str] = []
+        warnings: List[str] = []
         
         # 1. 检查必需字段
         for field, field_type in cls.REQUIRED_FIELDS.items():
@@ -204,15 +213,15 @@ class ConfigValidator:
             if not isinstance(aug_cfg, dict):
                 errors.append("❌ 'augmentation' 必须是字典类型")
         
-        # 7. 验证逻辑一致性
+        # 7. 验证逻辑一致性（警告，不阻止验证通过）
         if 'focal_gamma' in config and config.get('loss', '').lower() != 'focal':
-            errors.append(
-                "⚠️ 警告: 配置了focal_gamma但loss不是'focal'"
+            warnings.append(
+                "⚠️ 配置了focal_gamma但loss不是'focal'，focal_gamma将被忽略"
             )
         
         if 'focal' in config and config.get('loss', '').lower() != 'focal':
-            errors.append(
-                "⚠️ 警告: 配置了focal但loss不是'focal'"
+            warnings.append(
+                "⚠️ 配置了focal但loss不是'focal'，focal配置将被忽略"
             )
         
         if 'weight_decay' in config:
@@ -225,15 +234,21 @@ class ConfigValidator:
         if 'num_workers' in config:
             num_workers = config['num_workers']
             if num_workers < 0 or num_workers > 32:
-                errors.append(
-                    f"⚠️ num_workers ({num_workers}) 超出推荐范围 [0, 32]"
+                warnings.append(
+                    f"⚠️ num_workers ({num_workers}) 超出推荐范围 [0, 32]，可能导致性能问题"
                 )
         
         # 如果有错误，抛出异常
         if errors:
             raise ValueError("配置验证失败:\n" + "\n".join(errors))
         
+        # 打印警告（不阻止验证通过）
+        if warnings:
+            for warning in warnings:
+                print(warning)
+        
         print("[OK] 配置验证通过")
+        return warnings
     
     @classmethod
     def estimate_gpu_memory(cls, config: Dict[str, Any]) -> Dict[str, Any]:

@@ -9,7 +9,6 @@ from torch.optim import Optimizer
 from torch.utils.data import DataLoader
 from typing import List, Tuple, Optional
 import numpy as np
-import matplotlib.pyplot as plt
 from tqdm import tqdm
 
 
@@ -208,6 +207,9 @@ class LRFinder:
             show_suggestion: 是否显示建议学习率
             save_path: 保存路径（可选）
         """
+        # 延迟导入 matplotlib，仅在绘图时需要
+        import matplotlib.pyplot as plt
+        
         if not self.lrs:
             raise ValueError("No data to plot. Run find() first.")
         

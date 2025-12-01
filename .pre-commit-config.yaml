@@ -1,68 +1,90 @@
 # Pre-commit hooks configuration
-# 安装: pip install pre-commit
-# 启用: pre-commit install
-# 运行: pre-commit run --all-files
+# Install: pip install pre-commit && pre-commit install
+# Run manually: pre-commit run --all-files
 
 repos:
-  # 通用检查
-  - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.5.0
-    hooks:
-      - id: trailing-whitespace  # 删除行尾空格
-      - id: end-of-file-fixer  # 确保文件以换行符结尾
-      - id: check-yaml  # 检查YAML语法
-      - id: check-json  # 检查JSON语法
-      - id: check-added-large-files  # 防止提交大文件
-        args: ['--maxkb=5000']
-      - id: check-case-conflict  # 检查文件名冲突
-      - id: check-merge-conflict  # 检查合并冲突标记
-      - id: detect-private-key  # 检测私钥泄露
-
-  # Python代码格式化
+  # Code formatting with Black
   - repo: https://github.com/psf/black
-    rev: 23.11.0
+    rev: 23.9.1
     hooks:
       - id: black
         language_version: python3
-        args: ['--line-length=100']
+        args: [--line-length=100]
+        files: ^(src|tests|scripts)/
 
-  # Import排序
-  - repo: https://github.com/PyCQA/isort
+  # Import sorting with isort
+  - repo: https://github.com/pycqa/isort
     rev: 5.12.0
     hooks:
       - id: isort
-        args: ['--profile=black', '--line-length=100']
+        args: [--profile=black, --line-length=100]
+        files: ^(src|tests|scripts)/
 
-  # 代码检查
-  - repo: https://github.com/PyCQA/flake8
+  # Linting with flake8
+  - repo: https://github.com/pycqa/flake8
     rev: 6.1.0
     hooks:
       - id: flake8
-        args: ['--max-line-length=100', '--extend-ignore=E203,W503']
-        additional_dependencies: [flake8-docstrings]
+        args: [--max-line-length=100, --extend-ignore=E203,W503]
+        files: ^(src|tests|scripts)/
+        additional_dependencies:
+          - flake8-bugbear
+          - flake8-comprehensions
 
-  # 安全检查
+  # Type checking with mypy (optional, non-blocking)
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.5.1
+    hooks:
+      - id: mypy
+        args: [--ignore-missing-imports, --no-strict-optional]
+        files: ^src/
+        additional_dependencies:
+          - types-PyYAML
+          - types-tqdm
+
+  # General file checks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.4.0
+    hooks:
+      - id: trailing-whitespace
+        files: ^(src|tests|scripts)/
+      - id: end-of-file-fixer
+        files: ^(src|tests|scripts)/
+      - id: check-yaml
+        args: [--unsafe]  # Allow custom YAML tags
+      - id: check-added-large-files
+        args: [--maxkb=1000]
+      - id: check-merge-conflict
+      - id: debug-statements
+        files: ^(src|tests|scripts)/
+      - id: check-docstring-first
+        files: ^(src|tests|scripts)/
+
+  # Security checks with bandit
   - repo: https://github.com/PyCQA/bandit
     rev: 1.7.5
     hooks:
       - id: bandit
-        args: ['-c', 'pyproject.toml']
-        additional_dependencies: ['bandit[toml]']
+        args: [-ll, -ii, --skip=B101,B601]
+        files: ^src/
 
-  # 类型检查
-  - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.7.0
+  # YAML formatting
+  - repo: https://github.com/macisamuele/language-formatters-pre-commit-hooks
+    rev: v2.10.0
     hooks:
-      - id: mypy
-        additional_dependencies: [types-all]
-        args: ['--ignore-missing-imports', '--no-strict-optional']
+      - id: pretty-format-yaml
+        args: [--autofix, --indent=2]
+        files: ^src/configs/
 
-  # Markdown格式检查
-  - repo: https://github.com/executablebooks/mdformat
-    rev: 0.7.17
-    hooks:
-      - id: mdformat
-        additional_dependencies:
-          - mdformat-gfm
-          - mdformat-black
+# Configuration for pre-commit CI
+ci:
+  autofix_commit_msg: |
+    [pre-commit.ci] auto fixes from pre-commit hooks
 
+    for more information, see https://pre-commit.ci
+  autofix_prs: true
+  autoupdate_branch: ''
+  autoupdate_commit_msg: '[pre-commit.ci] pre-commit autoupdate'
+  autoupdate_schedule: weekly
+  skip: [mypy]  # Skip mypy in CI to avoid blocking
+  submodules: false

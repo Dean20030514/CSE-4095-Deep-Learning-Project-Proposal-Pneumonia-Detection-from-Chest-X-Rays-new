@@ -1,10 +1,11 @@
 from typing import Tuple
+import warnings
 import torch
 import torch.nn as nn
 from torchvision import models
 
 
-def build_model(name: str, num_classes: int) -> Tuple[nn.Module, int]:
+def build_model(name: str, num_classes: int, strict: bool = True) -> Tuple[nn.Module, int]:
     """Build a pretrained classification model for chest X-ray analysis.
     
     Loads a model with ImageNet pretrained weights and replaces the final
@@ -16,6 +17,8 @@ def build_model(name: str, num_classes: int) -> Tuple[nn.Module, int]:
             - 'efficientnet_b0', 'efficientnet_b2': EfficientNet variants
             - 'densenet121': DenseNet-121
         num_classes: Number of output classes (typically 2 for NORMAL/PNEUMONIA)
+        strict: If True, raise an error when the requested model is unavailable.
+                If False, fall back to a similar available model with a warning.
     
     Returns:
         model: Initialized PyTorch model with modified classifier
@@ -23,6 +26,7 @@ def build_model(name: str, num_classes: int) -> Tuple[nn.Module, int]:
     
     Raises:
         ValueError: If model name is not recognized
+        RuntimeError: If strict=True and the requested model is unavailable
     
     Example:
         >>> model, img_size = build_model('resnet18', num_classes=2)
@@ -46,8 +50,18 @@ def build_model(name: str, num_classes: int) -> Tuple[nn.Module, int]:
             net.classifier[-1] = nn.Linear(in_feats, num_classes)
             return net, 224
         except (ImportError, AttributeError) as e:
+            if strict:
+                raise RuntimeError(
+                    f"EfficientNet-B0 not available: {e}. "
+                    f"Please upgrade torchvision (>=0.13.0) or use a different model. "
+                    f"Set strict=False to fall back to ResNet18."
+                ) from e
             # Fallback to resnet18 if efficientnet is unavailable
-            print(f"[WARNING] EfficientNet-B0 not available ({e}), falling back to ResNet18")
+            warnings.warn(
+                f"EfficientNet-B0 not available ({e}), falling back to ResNet18. "
+                f"This may affect model performance.",
+                UserWarning
+            )
             net = models.resnet18(weights=models.ResNet18_Weights.DEFAULT)
             in_feats = net.fc.in_features
             net.fc = nn.Linear(in_feats, num_classes)
@@ -59,8 +73,18 @@ def build_model(name: str, num_classes: int) -> Tuple[nn.Module, int]:
             net.classifier[-1] = nn.Linear(in_feats, num_classes)
             return net, 260  # EfficientNet-B2 default input size
         except (ImportError, AttributeError) as e:
+            if strict:
+                raise RuntimeError(
+                    f"EfficientNet-B2 not available: {e}. "
+                    f"Please upgrade torchvision (>=0.13.0) or use a different model. "
+                    f"Set strict=False to fall back to EfficientNet-B0."
+                ) from e
             # Fallback to efficientnet_b0
-            print(f"[WARNING] EfficientNet-B2 not available ({e}), falling back to EfficientNet-B0")
+            warnings.warn(
+                f"EfficientNet-B2 not available ({e}), falling back to EfficientNet-B0. "
+                f"This may affect model performance.",
+                UserWarning
+            )
             net = models.efficientnet_b0(weights=models.EfficientNet_B0_Weights.DEFAULT)
             in_feats = net.classifier[-1].in_features
             net.classifier[-1] = nn.Linear(in_feats, num_classes)

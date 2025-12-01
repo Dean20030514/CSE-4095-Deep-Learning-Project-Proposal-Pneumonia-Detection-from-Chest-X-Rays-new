@@ -62,8 +62,8 @@ def mc_dropout_predict(
     mean_probs = predictions.mean(dim=0)
     uncertainty = predictions.std(dim=0)
     
-    # 恢复评估模式
-    model.eval()
+    # 注意：不再重复调用 model.eval()，因为在函数开始时已经调用过了
+    # enable_dropout() 仅启用 Dropout 层，而模型本身保持 eval 模式
     
     if return_samples:
         return mean_probs, uncertainty, predictions

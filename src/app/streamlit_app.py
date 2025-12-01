@@ -212,15 +212,10 @@ def get_model_performance(experiment_name):
             except (json.JSONDecodeError, KeyError, TypeError):
                 continue
     
-    # 回退到硬编码值（为了向后兼容）
-    fallback_map = {
-        'aug_aggressive': {'macro_recall': 97.39, 'pneumonia_recall': 97.18, 'accuracy': 97.30, 'pr_auc': 99.89},
-        'model_densenet121': {'macro_recall': 98.45, 'pneumonia_recall': 98.11, 'accuracy': 98.29, 'pr_auc': 99.85},
-        'lr_0.0001': {'macro_recall': 98.00, 'pneumonia_recall': 99.06, 'accuracy': 98.31, 'pr_auc': 99.90},
-        'model_efficientnet_b0': {'macro_recall': 98.38, 'pneumonia_recall': 98.58, 'accuracy': 98.47, 'pr_auc': 99.87},
-        'full_resnet18': {'macro_recall': 98.33, 'pneumonia_recall': 97.65, 'accuracy': 98.31, 'pr_auc': 99.86},
-    }
-    return fallback_map.get(experiment_name, None)
+    # 没有找到报告文件，返回 None 并记录日志
+    import logging
+    logging.debug(f"No performance report found for {experiment_name}")
+    return None
 
 
 def main():

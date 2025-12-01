@@ -109,10 +109,17 @@ class ModelEnsemble(nn.Module):
     
     def _hard_voting(self, x: torch.Tensor) -> torch.Tensor:
         """硬投票集成"""
+        # 防御性检查：确保至少有一个模型
+        if not self.models:
+            raise ValueError("No models in ensemble for hard voting")
+        
         votes = []
+        num_classes = None
         for model in self.models:
             with torch.no_grad():
                 logits = model(x)
+                if num_classes is None:
+                    num_classes = logits.size(1)
                 preds = logits.argmax(dim=1)
                 votes.append(preds)
         
@@ -120,7 +127,6 @@ class ModelEnsemble(nn.Module):
         votes = torch.stack(votes, dim=0)  # (num_models, batch_size)
         
         # 转换为 one-hot 并求和
-        num_classes = logits.size(1)
         one_hot_votes = F.one_hot(votes, num_classes=num_classes).float()  # (num_models, batch_size, num_classes)
         vote_counts = one_hot_votes.sum(dim=0)  # (batch_size, num_classes)
         

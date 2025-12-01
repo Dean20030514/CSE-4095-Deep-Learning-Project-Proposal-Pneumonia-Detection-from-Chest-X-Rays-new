@@ -19,7 +19,8 @@ class TestEndToEndWorkflow:
         """测试最小化的训练循环"""
         from src.models.factory import build_model
         from src.data.datamodule import build_dataloaders
-        from src.train import FocalLoss, set_seed
+        from src.models.losses import FocalLoss
+        from src.train import set_seed
         
         # 设置随机种子
         set_seed(42)
@@ -74,7 +75,7 @@ class TestEndToEndWorkflow:
         """测试带验证的训练"""
         from src.models.factory import build_model
         from src.data.datamodule import build_dataloaders
-        from src.train import FocalLoss
+        from src.models.losses import FocalLoss
         
         model, _ = build_model('resnet18', num_classes=2)
         model = model.to(device)
@@ -416,7 +417,8 @@ class TestConfigValidation:
         from src.utils.config_validator import ConfigValidator
         from src.models.factory import build_model
         from src.data.datamodule import build_dataloaders
-        from src.train import FocalLoss, set_seed
+        from src.models.losses import FocalLoss
+        from src.train import set_seed
         
         # 验证配置
         ConfigValidator.validate(sample_config)

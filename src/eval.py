@@ -76,6 +76,8 @@ def main():
     parser.add_argument('--model', type=str, default=None, help='Override model name from checkpoint (e.g., efficientnet_b2)')
     parser.add_argument('--threshold_sweep', action='store_true', help='Sweep over [0.1..0.9]')
     parser.add_argument('--report', type=str, default=None, help='Save JSON report')
+    parser.add_argument('--num_workers', type=int, default=None, 
+                        help='Number of data loader workers (default: auto based on OS and CPU count)')
     args = parser.parse_args()
 
     # 加载 checkpoint
@@ -107,7 +109,13 @@ def main():
 
     # 构建 dataloader (跨平台兼容: Windows使用num_workers=0, 其他平台使用多进程)
     import platform
-    num_workers = 0 if platform.system() == 'Windows' else 4
+    import os
+    if args.num_workers is not None:
+        num_workers = args.num_workers
+    else:
+        # 从环境变量或合理默认值获取
+        default_workers = 0 if platform.system() == 'Windows' else min(4, os.cpu_count() or 1)
+        num_workers = int(os.environ.get('NUM_WORKERS', default_workers))
     loaders, _ = build_dataloaders(args.data_root, img_size=img_size, batch_size=batch_size, 
                                     use_weighted_sampler=False, num_workers=num_workers)
     loader = loaders[args.split]
