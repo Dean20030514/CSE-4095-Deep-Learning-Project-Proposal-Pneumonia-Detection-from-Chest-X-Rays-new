@@ -35,15 +35,20 @@ if PYDANTIC_AVAILABLE:
         contrast_limit: float = Field(default=0.2, ge=0.0, le=1.0)
         blur_limit: int = Field(default=3, ge=0, le=11)
         noise_var_limit: float = Field(default=0.02, ge=0.0, le=0.5)
+        scale_limit: float = Field(default=0.1, ge=0.0, le=0.5, description="Scale augmentation limit")
+        shift_limit: float = Field(default=0.1, ge=0.0, le=0.5, description="Shift augmentation limit")
     
     
     class TrainingConfig(BaseModel):
         """完整训练配置 Schema"""
         
         # 必需字段
-        model: Literal['resnet18', 'resnet50', 'efficientnet_b0', 'efficientnet_b2', 'densenet121'] = Field(
-            description="Model architecture name"
-        )
+        model: Literal[
+            'resnet18', 'resnet50', 
+            'efficientnet_b0', 'efficientnet_b2', 
+            'densenet121',
+            'mobilenet_v3_small', 'mobilenet_v3_large'
+        ] = Field(description="Model architecture name")
         img_size: int = Field(ge=32, le=1024, description="Input image size")
         batch_size: int = Field(ge=1, le=1024, description="Training batch size")
         epochs: int = Field(ge=1, le=1000, description="Number of training epochs")
@@ -55,9 +60,10 @@ if PYDANTIC_AVAILABLE:
         num_workers: int = Field(default=4, ge=0, le=32, description="DataLoader workers")
         weight_decay: float = Field(default=0.01, ge=0, le=1, description="Weight decay")
         
-        loss: Literal['cross_entropy', 'focal', 'weighted_ce'] = Field(
+        loss: Literal['cross_entropy', 'focal', 'weighted_ce', 'label_smoothing', 'smooth_ce'] = Field(
             default='focal', description="Loss function"
         )
+        label_smoothing: float = Field(default=0.1, ge=0.0, le=0.5, description="Label smoothing factor")
         focal: Optional[FocalLossConfig] = Field(default=None, description="Focal loss config")
         focal_gamma: Optional[float] = Field(default=None, ge=0.0, le=5.0, description="Legacy focal gamma")
         
@@ -98,8 +104,16 @@ if PYDANTIC_AVAILABLE:
         @classmethod
         def validate_img_size(cls, v: int) -> int:
             """验证图像尺寸是否合理"""
-            if v % 32 != 0:
-                raise ValueError(f'img_size ({v}) should be divisible by 32 for optimal performance')
+            # EfficientNet-B2 推荐使用 260px，允许例外
+            allowed_non_32_sizes = [260]
+            if v % 32 != 0 and v not in allowed_non_32_sizes:
+                import warnings
+                warnings.warn(
+                    f'img_size ({v}) is not divisible by 32 and not a standard size. '
+                    f'This may cause issues with some models. '
+                    f'Standard sizes: 224, 256, 260 (EfficientNet-B2), 288, 320, 384',
+                    UserWarning
+                )
             return v
         
         @field_validator('batch_size')

@@ -181,7 +181,14 @@ def get_model_performance(experiment_name):
     Searches for performance data in:
     1. reports/test_{experiment_name}.json
     2. runs/{experiment_name}/evaluation_curves/metrics.json
-    3. Fallback to hardcoded values for known experiments
+    3. runs/{experiment_name}/test_results.json
+    
+    Args:
+        experiment_name: Name of the experiment directory
+    
+    Returns:
+        dict or None: Performance metrics dict with keys 'accuracy', 'macro_recall', 
+                      'pneumonia_recall', 'pr_auc' if found, None otherwise
     """
     import json
     

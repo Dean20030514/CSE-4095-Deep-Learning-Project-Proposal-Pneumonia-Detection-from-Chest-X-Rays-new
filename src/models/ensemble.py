@@ -56,8 +56,20 @@ class ModelEnsemble(nn.Module):
         else:
             if len(weights) != len(models):
                 raise ValueError(f"Number of weights ({len(weights)}) must match number of models ({len(models)})")
-            # 归一化权重
+            # 验证权重并归一化
+            if any(w < 0 for w in weights):
+                raise ValueError("Weights must be non-negative")
             total = sum(weights)
+            if total <= 0:
+                raise ValueError("Sum of weights must be positive")
+            # 检查是否需要归一化
+            import warnings
+            if not (0.99 <= total <= 1.01):  # 允许小的浮点误差
+                warnings.warn(
+                    f"Weights sum to {total:.4f}, normalizing to 1.0. "
+                    f"Consider providing normalized weights for clarity.",
+                    UserWarning
+                )
             self.weights = [w / total for w in weights]
         
         # 设置为评估模式

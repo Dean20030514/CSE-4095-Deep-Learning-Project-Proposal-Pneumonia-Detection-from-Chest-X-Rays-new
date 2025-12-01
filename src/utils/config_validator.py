@@ -16,6 +16,8 @@ MODEL_SPECS = {
     'efficientnet_b0': {'params_m': 5.3, 'base_memory_mb': 400, 'recommended_batch_8gb': 64},
     'efficientnet_b2': {'params_m': 9.2, 'base_memory_mb': 600, 'recommended_batch_8gb': 48},
     'densenet121': {'params_m': 8.0, 'base_memory_mb': 700, 'recommended_batch_8gb': 48},
+    'mobilenet_v3_small': {'params_m': 2.5, 'base_memory_mb': 200, 'recommended_batch_8gb': 128},
+    'mobilenet_v3_large': {'params_m': 5.4, 'base_memory_mb': 350, 'recommended_batch_8gb': 96},
 }
 
 
@@ -71,10 +73,11 @@ class ConfigValidator:
     VALID_MODELS = [
         'resnet18', 'resnet50', 
         'efficientnet_b0', 'efficientnet_b2',
-        'densenet121'
+        'densenet121',
+        'mobilenet_v3_small', 'mobilenet_v3_large'
     ]
     
-    VALID_LOSSES = ['cross_entropy', 'focal', 'weighted_ce']
+    VALID_LOSSES = ['cross_entropy', 'focal', 'weighted_ce', 'label_smoothing', 'smooth_ce']
     VALID_OPTIMIZERS = ['adam', 'adamw', 'sgd']
     VALID_SCHEDULERS = ['step', 'cosine', 'exponential', 'none']
     VALID_AUGMENT_LEVELS = ['light', 'medium', 'heavy', 'aggressive']

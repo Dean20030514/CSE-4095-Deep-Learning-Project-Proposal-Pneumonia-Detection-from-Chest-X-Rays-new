@@ -16,6 +16,7 @@ def build_model(name: str, num_classes: int, strict: bool = True) -> Tuple[nn.Mo
             - 'resnet18', 'resnet50': ResNet variants
             - 'efficientnet_b0', 'efficientnet_b2': EfficientNet variants
             - 'densenet121': DenseNet-121
+            - 'mobilenet_v3_small', 'mobilenet_v3_large': MobileNetV3 (lightweight)
         num_classes: Number of output classes (typically 2 for NORMAL/PNEUMONIA)
         strict: If True, raise an error when the requested model is unavailable.
                 If False, fall back to a similar available model with a warning.
@@ -94,4 +95,44 @@ def build_model(name: str, num_classes: int, strict: bool = True) -> Tuple[nn.Mo
         in_feats = net.classifier.in_features
         net.classifier = nn.Linear(in_feats, num_classes)
         return net, 224
+    if name in ["mobilenet_v3_small", "mobilenetv3_small", "mobilenet-v3-small"]:
+        try:
+            net = models.mobilenet_v3_small(weights=models.MobileNet_V3_Small_Weights.DEFAULT)
+            in_feats = net.classifier[-1].in_features
+            net.classifier[-1] = nn.Linear(in_feats, num_classes)
+            return net, 224
+        except (ImportError, AttributeError) as e:
+            if strict:
+                raise RuntimeError(
+                    f"MobileNetV3-Small not available: {e}. "
+                    f"Please upgrade torchvision (>=0.12.0) or use a different model."
+                ) from e
+            warnings.warn(
+                f"MobileNetV3-Small not available ({e}), falling back to ResNet18.",
+                UserWarning
+            )
+            net = models.resnet18(weights=models.ResNet18_Weights.DEFAULT)
+            in_feats = net.fc.in_features
+            net.fc = nn.Linear(in_feats, num_classes)
+            return net, 224
+    if name in ["mobilenet_v3_large", "mobilenetv3_large", "mobilenet-v3-large"]:
+        try:
+            net = models.mobilenet_v3_large(weights=models.MobileNet_V3_Large_Weights.DEFAULT)
+            in_feats = net.classifier[-1].in_features
+            net.classifier[-1] = nn.Linear(in_feats, num_classes)
+            return net, 224
+        except (ImportError, AttributeError) as e:
+            if strict:
+                raise RuntimeError(
+                    f"MobileNetV3-Large not available: {e}. "
+                    f"Please upgrade torchvision (>=0.12.0) or use a different model."
+                ) from e
+            warnings.warn(
+                f"MobileNetV3-Large not available ({e}), falling back to MobileNetV3-Small.",
+                UserWarning
+            )
+            net = models.mobilenet_v3_small(weights=models.MobileNet_V3_Small_Weights.DEFAULT)
+            in_feats = net.classifier[-1].in_features
+            net.classifier[-1] = nn.Linear(in_feats, num_classes)
+            return net, 224
     raise ValueError(f"Unknown model name: {name}")

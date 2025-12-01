@@ -23,15 +23,24 @@ class TemperatureScaling(nn.Module):
         """Apply temperature scaling to logits"""
         return logits / self.temperature
     
-    def fit(self, logits, labels, lr=0.01, max_iter=50):
+    def fit(
+        self, 
+        logits: torch.Tensor, 
+        labels: torch.Tensor, 
+        lr: float = 0.01, 
+        max_iter: int = 50
+    ) -> float:
         """
-        Fit temperature parameter using validation set
+        Fit temperature parameter using validation set.
         
         Args:
             logits: model logits (N, C)
             labels: ground truth labels (N,)
-            lr: learning rate
-            max_iter: maximum iterations
+            lr: learning rate for optimization
+            max_iter: maximum iterations for L-BFGS optimizer
+        
+        Returns:
+            Optimal temperature value
         """
         criterion = nn.CrossEntropyLoss()
         optimizer = torch.optim.LBFGS([self.temperature], lr=lr, max_iter=max_iter)

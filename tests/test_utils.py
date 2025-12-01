@@ -445,5 +445,162 @@ class TestUtilsIntegration:
         assert scaled_logits.shape == logits.shape
 
 
+class TestDatasetHash:
+    """测试数据集哈希功能"""
+    
+    def test_compute_file_hash(self, tmp_path):
+        """测试单文件哈希计算"""
+        from src.utils.dataset_hash import compute_file_hash
+        
+        # 创建测试文件
+        test_file = tmp_path / "test.txt"
+        test_file.write_text("Hello, World!")
+        
+        # 计算哈希
+        hash_md5 = compute_file_hash(test_file, algorithm='md5')
+        hash_sha256 = compute_file_hash(test_file, algorithm='sha256')
+        
+        # 验证哈希格式
+        assert isinstance(hash_md5, str)
+        assert len(hash_md5) == 32  # MD5 是 32 字符
+        assert isinstance(hash_sha256, str)
+        assert len(hash_sha256) == 64  # SHA256 是 64 字符
+    
+    def test_compute_file_hash_reproducible(self, tmp_path):
+        """测试哈希计算的可复现性"""
+        from src.utils.dataset_hash import compute_file_hash
+        
+        test_file = tmp_path / "test.txt"
+        test_file.write_text("Test content")
+        
+        hash1 = compute_file_hash(test_file)
+        hash2 = compute_file_hash(test_file)
+        
+        assert hash1 == hash2
+    
+    def test_compute_dataset_hash(self, mock_dataset_dir):
+        """测试数据集哈希计算"""
+        from src.utils.dataset_hash import compute_dataset_hash
+        
+        hash_info = compute_dataset_hash(mock_dataset_dir)
+        
+        assert 'structure_hash' in hash_info
+        assert 'file_count' in hash_info
+        assert 'splits' in hash_info
+        assert hash_info['file_count'] > 0
+    
+    def test_compute_dataset_hash_content(self, mock_dataset_dir):
+        """测试包含内容哈希的数据集哈希"""
+        from src.utils.dataset_hash import compute_dataset_hash
+        
+        hash_info = compute_dataset_hash(mock_dataset_dir, include_content=True)
+        
+        assert 'content_hash' in hash_info
+        assert len(hash_info['content_hash']) == 32
+    
+    def test_save_and_verify_hash(self, mock_dataset_dir, tmp_path):
+        """测试保存和验证哈希"""
+        from src.utils.dataset_hash import save_dataset_hash, verify_dataset_hash, compute_dataset_hash
+        
+        # 保存哈希
+        output_path = tmp_path / "dataset_hash.json"
+        hash_info = save_dataset_hash(mock_dataset_dir, output_path)
+        
+        assert output_path.exists()
+        
+        # 验证哈希
+        is_valid = verify_dataset_hash(
+            mock_dataset_dir, 
+            hash_info['structure_hash'], 
+            hash_type='structure'
+        )
+        assert is_valid
+
+
+class TestModelInfo:
+    """测试模型信息功能"""
+    
+    def test_count_parameters(self):
+        """测试参数计数"""
+        from src.utils.model_info import count_parameters
+        
+        # 简单线性层
+        model = torch.nn.Linear(100, 10)
+        
+        total_params = count_parameters(model)
+        trainable_params = count_parameters(model, trainable_only=True)
+        
+        # Linear(100, 10): 100*10 + 10 = 1010
+        assert total_params == 1010
+        assert trainable_params == 1010
+    
+    def test_count_parameters_frozen(self):
+        """测试冻结参数计数"""
+        from src.utils.model_info import count_parameters
+        
+        model = torch.nn.Linear(100, 10)
+        
+        # 冻结参数
+        for param in model.parameters():
+            param.requires_grad = False
+        
+        total = count_parameters(model, trainable_only=False)
+        trainable = count_parameters(model, trainable_only=True)
+        
+        assert total == 1010
+        assert trainable == 0
+    
+    def test_get_model_size(self):
+        """测试模型大小计算"""
+        from src.utils.model_info import get_model_size
+        from src.models.factory import build_model
+        
+        model, _ = build_model('resnet18', num_classes=2)
+        size_info = get_model_size(model)
+        
+        assert 'total_params' in size_info
+        assert 'trainable_params' in size_info
+        assert 'frozen_params' in size_info
+        assert 'size_mb' in size_info
+        assert 'size_mb_fp16' in size_info
+        
+        # ResNet18 应该有约 11M 参数
+        assert 10_000_000 < size_info['total_params'] < 15_000_000
+        assert size_info['size_mb'] > 0
+    
+    def test_estimate_flops(self):
+        """测试 FLOPs 估算"""
+        from src.utils.model_info import estimate_flops_simple
+        from src.models.factory import build_model
+        
+        model, img_size = build_model('resnet18', num_classes=2)
+        flops_info = estimate_flops_simple(
+            model, 
+            input_size=(1, 3, img_size, img_size),
+            device='cpu'
+        )
+        
+        assert 'total_flops' in flops_info
+        assert 'total_gflops' in flops_info
+        assert flops_info['total_flops'] > 0
+    
+    def test_get_model_complexity(self):
+        """测试完整复杂度信息"""
+        from src.utils.model_info import get_model_complexity
+        from src.models.factory import build_model
+        
+        model, img_size = build_model('resnet18', num_classes=2)
+        complexity = get_model_complexity(
+            model,
+            input_size=(1, 3, img_size, img_size),
+            device='cpu'
+        )
+        
+        # 应该包含参数和 FLOPs 信息
+        assert 'total_params' in complexity
+        assert 'total_flops' in complexity
+        assert 'method' in complexity
+
+
 if __name__ == '__main__':
     pytest.main([__file__, '-v'])

@@ -176,6 +176,17 @@ def main():
     pneumonia_idx = class_to_idx.get('PNEUMONIA', class_to_idx.get('pneumonia', 1))
 
     model, _ = build_model(model_name, num_classes)
+    
+    # 打印模型复杂度信息
+    try:
+        from src.utils.model_info import get_model_size
+        model_info = get_model_size(model)
+        print(f"\n[MODEL] Model Complexity:")
+        print(f"  - Parameters: {model_info['total_params'] / 1e6:.2f}M")
+        print(f"  - Trainable: {model_info['trainable_params'] / 1e6:.2f}M")
+        print(f"  - Size (FP32): {model_info['size_mb']:.2f} MB")
+    except ImportError:
+        pass  # 静默跳过，model_info 模块可能不可用
 
     device = get_device()
     model = model.to(device)
@@ -266,20 +277,26 @@ def main():
     use_amp_actual = use_amp and torch.cuda.is_available()  # CPU强制禁用AMP
     
     # 检测是否支持 bfloat16（Ampere+ GPU）
-    use_bf16 = cfg.get('use_bf16', False)
+    use_bf16 = cfg.get('use_bf16', cfg.get('bfloat16', False))
     if use_bf16 and torch.cuda.is_available():
         if torch.cuda.is_bf16_supported():
             amp_dtype = torch.bfloat16
             # bfloat16 不需要 GradScaler
             scaler = GradScaler(device_type, enabled=False)
-            print("  - Mixed precision: bfloat16 (no scaling needed)")
+            gpu_name = torch.cuda.get_device_name(0) if torch.cuda.is_available() else "Unknown"
+            print(f"  - Mixed precision: bfloat16 (Ampere+ GPU: {gpu_name})")
+            print("  - GradScaler: disabled (not needed for bfloat16)")
         else:
-            print("  - [WARNING] bfloat16 not supported on this GPU, falling back to float16")
+            gpu_name = torch.cuda.get_device_name(0) if torch.cuda.is_available() else "Unknown"
+            print(f"  - [WARNING] bfloat16 requested but not supported on {gpu_name}")
+            print("  - Mixed precision: float16 (fallback)")
             amp_dtype = torch.float16
             scaler = GradScaler(device_type, enabled=use_amp_actual)
     else:
         amp_dtype = torch.float16
         scaler = GradScaler(device_type, enabled=use_amp_actual)
+        if use_amp_actual:
+            print("  - Mixed precision: float16")
     
     # TensorBoard 支持
     tensorboard_writer = None
@@ -607,6 +624,11 @@ def main():
                 no_improve += 1
                 if patience > 0 and no_improve >= patience:
                     log_print(f"\nEarly stopping at epoch {epoch} (no improvement in {no_improve} epochs)")
+                    # 早停时可选保存最后一个 checkpoint
+                    save_last_on_stop = cfg.get('early_stopping', {}).get('save_last_on_stop', True)
+                    if save_last_on_stop:
+                        save_checkpoint(ckpt_state, last_ckpt)
+                        log_print(f"  [SAVE] Last checkpoint saved before early stopping: {last_ckpt}")
                     break
         
         # 训练完成,打印最终总结
