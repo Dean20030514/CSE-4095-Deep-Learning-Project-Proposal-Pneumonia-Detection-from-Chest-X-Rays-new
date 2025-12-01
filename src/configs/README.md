@@ -1,6 +1,6 @@
 # Configuration Files Documentation
 
-> **17 training configurations** | Covering architectures, learning rates, data augmentation experiments
+> **18 training configurations** | Covering architectures, learning rates, data augmentation experiments
 
 ---
 
@@ -70,10 +70,11 @@
 
 ---
 
-### 5. Special Purpose (2 files)
+### 5. Special Purpose (3 files)
 
 | Config | Purpose | Features |
 |--------|---------|----------|
+| `demo_quick.yaml` | Quick demo | Ultra-fast demo (1 epoch, minimal settings) |
 | `medical_screening_optimized.yaml` | Medical screening | Maximize pneumonia recall (>99%) |
 | `full_resnet18.yaml` | Complete training | More epochs and tuning |
 
@@ -287,6 +288,6 @@ code ../TRAINING_GUIDE.md
 
 ---
 
-**Number of Configs:** 17  
+**Number of Configs:** 18  
 **Organization Clarity:** ⭐⭐⭐⭐⭐  
 **Coverage Completeness:** ⭐⭐⭐⭐⭐

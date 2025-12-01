@@ -18,10 +18,16 @@ from tqdm import tqdm
 import yaml
 
 from src.models.factory import build_model
-from src.models.losses import FocalLoss, get_loss_function
+from src.models.losses import get_loss_function
 from src.utils.device import get_device
 from src.data.datamodule import build_dataloaders
 from src.utils.config_validator import ConfigValidator
+
+# 可选：Pydantic 验证（如果可用）
+try:
+    from src.utils.config_schema import validate_config_with_pydantic, PYDANTIC_AVAILABLE
+except ImportError:
+    PYDANTIC_AVAILABLE = False
 
 
 def set_seed(seed: int = 42):
@@ -83,6 +89,14 @@ def main():
                        help='Override augmentation level from config')
     parser.add_argument('--model', type=str, default=None, 
                        help='Override model architecture from config')
+    
+    # 训练后操作
+    parser.add_argument('--auto_eval', action='store_true',
+                       help='Automatically run evaluation on test set after training')
+    parser.add_argument('--export_onnx', action='store_true',
+                       help='Export best model to ONNX format after training')
+    parser.add_argument('--export_torchscript', action='store_true',
+                       help='Export best model to TorchScript format after training')
     args = parser.parse_args()
 
     # 加载配置
@@ -92,7 +106,15 @@ def main():
     
     # 验证配置
     try:
-        ConfigValidator.validate(cfg)
+        # 使用传统验证器
+        warnings_list = ConfigValidator.validate(cfg)
+        
+        # 可选：使用 Pydantic 进行额外验证
+        if PYDANTIC_AVAILABLE and cfg.get('use_pydantic_validation', False):
+            print("  - Pydantic validation: enabled")
+            validated_cfg = validate_config_with_pydantic(cfg)
+            print(f"  - Pydantic: config validated as {validated_cfg.model}")
+        
         if args.validate_config:
             print("[OK] Configuration is valid!")
             return
@@ -179,14 +201,26 @@ def main():
     
     # 打印模型复杂度信息
     try:
-        from src.utils.model_info import get_model_size
+        from src.utils.model_info import get_model_size, get_model_complexity
         model_info = get_model_size(model)
         print(f"\n[MODEL] Model Complexity:")
         print(f"  - Parameters: {model_info['total_params'] / 1e6:.2f}M")
         print(f"  - Trainable: {model_info['trainable_params'] / 1e6:.2f}M")
         print(f"  - Size (FP32): {model_info['size_mb']:.2f} MB")
+        
+        # 尝试计算 FLOPs
+        try:
+            complexity = get_model_complexity(
+                model, 
+                input_size=(1, 3, int(cfg.get('img_size', 224)), int(cfg.get('img_size', 224)))
+            )
+            print(f"  - GFLOPs: {complexity['total_gflops']:.2f}")
+        except Exception:
+            print("  - GFLOPs: (calculation skipped)")
     except ImportError:
-        pass  # 静默跳过，model_info 模块可能不可用
+        print("\n[MODEL] Model Complexity: (model_info module not available)")
+    except Exception as e:
+        print(f"\n[MODEL] Model Complexity: (error: {e})")
 
     device = get_device()
     model = model.to(device)
@@ -648,6 +682,49 @@ def main():
         log_print(f"  - Metrics CSV: {csv_path}")
         log_print(f"  - Training log: {train_log_path}")
         log_print(f"  - Config copy: {config_copy_path}")
+        
+        # 训练后自动评估
+        if args.auto_eval:
+            log_print("\n[AUTO-EVAL] Running evaluation on test set...")
+            try:
+                from src.eval import main as eval_main
+                import sys
+                old_argv = sys.argv
+                sys.argv = ['eval.py', '--ckpt', str(best_ckpt), '--data_root', args.data_root, '--split', 'test']
+                eval_main()
+                sys.argv = old_argv
+                log_print("[AUTO-EVAL] Evaluation completed!")
+            except Exception as e:
+                log_print(f"[AUTO-EVAL] Error: {e}")
+        
+        # 训练后自动导出
+        if args.export_onnx or args.export_torchscript:
+            log_print("\n[AUTO-EXPORT] Exporting model...")
+            try:
+                from src.utils.export import export_model_from_checkpoint
+                
+                if args.export_onnx:
+                    onnx_path = output_dir / 'model.onnx'
+                    export_model_from_checkpoint(
+                        str(best_ckpt), 
+                        str(onnx_path), 
+                        format='onnx',
+                        img_size=int(cfg.get('img_size', 224))
+                    )
+                    log_print(f"  - ONNX exported: {onnx_path}")
+                
+                if args.export_torchscript:
+                    ts_path = output_dir / 'model.pt'
+                    export_model_from_checkpoint(
+                        str(best_ckpt), 
+                        str(ts_path), 
+                        format='torchscript',
+                        img_size=int(cfg.get('img_size', 224))
+                    )
+                    log_print(f"  - TorchScript exported: {ts_path}")
+                    
+            except Exception as e:
+                log_print(f"[AUTO-EXPORT] Error: {e}")
         
         log_print("\nNext steps:")
         log_print(f"  1. Evaluate: python src/eval.py --ckpt {best_ckpt} --data_root {args.data_root} --split test")

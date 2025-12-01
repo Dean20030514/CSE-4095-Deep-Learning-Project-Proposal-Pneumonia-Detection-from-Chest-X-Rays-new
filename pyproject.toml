@@ -67,10 +67,10 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/username/pneumonia-detection"
-Documentation = "https://github.com/username/pneumonia-detection/docs"
-Repository = "https://github.com/username/pneumonia-detection"
-"Bug Tracker" = "https://github.com/username/pneumonia-detection/issues"
+Homepage = "https://github.com/CSE-4095-Deep-Learning/pneumonia-detection"
+Documentation = "https://github.com/CSE-4095-Deep-Learning/pneumonia-detection#readme"
+Repository = "https://github.com/CSE-4095-Deep-Learning/pneumonia-detection"
+"Bug Tracker" = "https://github.com/CSE-4095-Deep-Learning/pneumonia-detection/issues"
 
 # ========================================
 # Setuptools配置（包发现）

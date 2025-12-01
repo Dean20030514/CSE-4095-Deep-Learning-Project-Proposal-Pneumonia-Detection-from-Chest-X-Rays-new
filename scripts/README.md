@@ -1,6 +1,6 @@
 # Scripts Directory Documentation
 
-> **20 script tools** | Organized by function | Optimized and streamlined
+> **30 script tools** | Organized by function | Optimized and streamlined
 
 ---
 
@@ -55,6 +55,23 @@
 |--------|----------|-------|
 | `demo_presentation.py` | Demo presentation | `python scripts/demo_presentation.py` |
 | `project_dashboard.py` | Project dashboard | `python scripts/project_dashboard.py` |
+
+---
+
+## 🔧 Advanced Tools (10 scripts)
+
+| Script | Function | Usage |
+|--------|----------|-------|
+| `auto_optimize_hyperparams.py` | Automated hyperparameter optimization | `python scripts/auto_optimize_hyperparams.py` |
+| `benchmark_inference.py` | Inference performance benchmark | `python scripts/benchmark_inference.py --ckpt <model>` |
+| `cross_validation.py` | K-fold cross validation | `python scripts/cross_validation.py --config <config>` |
+| `optuna_hyperparameter_search.py` | Optuna-based hyperparameter search | `python scripts/optuna_hyperparameter_search.py` |
+| `visualize_augmentations.py` | Data augmentation visualization | `python scripts/visualize_augmentations.py <image>` |
+| `ensemble_evaluation.py` | Model ensemble evaluation | `python scripts/ensemble_evaluation.py --runs_dir runs --top_k 3` |
+| `uncertainty_estimation.py` | MC Dropout uncertainty analysis | `python scripts/uncertainty_estimation.py --ckpt <model>` |
+| `find_optimal_lr.py` | Learning rate range test | `python scripts/find_optimal_lr.py --config <config>` |
+| `monitor_training.py` | Real-time training monitor | `python scripts/monitor_training.py --run_dir runs/<exp>` |
+| `complete_analysis.ps1` | Complete model analysis pipeline | `.\scripts\complete_analysis.ps1 -Checkpoint <model>` |
 
 ---
 
@@ -195,6 +212,6 @@ python scripts/generate_project_report.py
 
 ---
 
-**Total Scripts:** 20 (optimized and streamlined)  
+**Total Scripts:** 30 (optimized and streamlined)  
 **Organization Clarity:** ⭐⭐⭐⭐⭐  
 **Ease of Use:** ⭐⭐⭐⭐⭐
