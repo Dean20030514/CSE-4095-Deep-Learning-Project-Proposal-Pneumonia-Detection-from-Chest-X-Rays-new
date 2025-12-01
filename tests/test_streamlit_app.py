@@ -278,11 +278,12 @@ class TestImagePreprocessing:
             T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
         ])
         
-        img = Image.new('RGB', (224, 224), color='gray')
+        # 使用非灰色图像以产生归一化后超出 [0,1] 范围的值
+        img = Image.new('RGB', (224, 224), color='white')
         tensor = tf(img)
         
-        # 归一化后值应该有正有负
-        assert tensor.min() < 0 or tensor.max() > 1
+        # 归一化后值应该超出 [0, 1] 范围（白色像素归一化后会大于1）
+        assert tensor.max() > 1
 
 
 class TestPredictionLogic:

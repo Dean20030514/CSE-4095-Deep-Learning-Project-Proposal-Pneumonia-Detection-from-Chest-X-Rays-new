@@ -122,16 +122,17 @@ class TestMetrics:
     def test_sensitivity_specificity(self):
         """测试灵敏度和特异度计算"""
         # 创建已知的混淆矩阵
-        # [[TN, FP],
-        #  [FN, TP]]
+        # 混淆矩阵格式: cm[i, j] = 实际类为 i，预测类为 j 的数量
+        # [[8, 2],   -> 类0: 8正确, 2错分为类1
+        #  [1, 9]]   -> 类1: 1错分为类0, 9正确
         cm = np.array([[8, 2],
                        [1, 9]])
         
         sensitivity, specificity = compute_sensitivity_specificity(cm)
         
-        # Class 0: TP=8, FN=1, TN=9, FP=2
-        # Sensitivity_0 = TP/(TP+FN) = 8/(8+1) = 0.888...
-        # Specificity_0 = TN/(TN+FP) = 9/(9+2) = 0.818...
+        # Class 0: TP=8, FN=2 (行和-TP), FP=1 (列和-TP), TN=9
+        # Sensitivity_0 = TP/(TP+FN) = 8/(8+2) = 0.8
+        # Specificity_0 = TN/(TN+FP) = 9/(9+1) = 0.9
         
         assert len(sensitivity) == 2
         assert len(specificity) == 2
@@ -139,8 +140,8 @@ class TestMetrics:
         assert 0 <= specificity[0] <= 1
         
         # 验证计算正确性
-        assert np.isclose(sensitivity[0], 8/9)
-        assert np.isclose(specificity[0], 9/11)
+        assert np.isclose(sensitivity[0], 8/10)  # 8/(8+2)
+        assert np.isclose(specificity[0], 9/10)  # 9/(9+1)
     
     def test_multiclass_metrics(self):
         """测试多分类指标"""
