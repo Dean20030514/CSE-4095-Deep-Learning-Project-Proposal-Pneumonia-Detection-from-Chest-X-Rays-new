@@ -21,10 +21,26 @@ class RobustImageFolder(datasets.ImageFolder):
     ImageFolder with error handling for corrupted images.
     Skips corrupted files instead of crashing.
     Implements retry logic with maximum attempts to avoid infinite loops.
+    
+    Attributes:
+        skipped_indices: Set of indices that failed to load
+        max_retry_attempts: Maximum number of consecutive load attempts
     """
     def __init__(self, *args, max_retry_attempts=10, **kwargs):
         super().__init__(*args, **kwargs)
         self.max_retry_attempts = max_retry_attempts
+        self._skipped_indices: set = set()
+        self._warned_indices: set = set()  # 已警告的索引，避免重复警告
+    
+    @property
+    def skipped_indices(self) -> set:
+        """返回加载失败的索引集合"""
+        return self._skipped_indices.copy()
+    
+    @property
+    def num_skipped(self) -> int:
+        """返回跳过的图像数量"""
+        return len(self._skipped_indices)
     
     def __getitem__(self, index):
         """
@@ -32,21 +48,38 @@ class RobustImageFolder(datasets.ImageFolder):
         
         If an image fails to load, tries the next image up to max_retry_attempts times.
         This prevents infinite loops on datasets with many corrupted images.
+        
+        Note:
+            - 跳过的索引会被记录在 skipped_indices 中
+            - 返回的数据来自成功加载的图像，其标签是原始索引的标签
         """
+        original_index = index
+        
         for attempt in range(self.max_retry_attempts):
             try:
-                return super().__getitem__(index)
+                data = super().__getitem__(index)
+                # 如果不是原始索引，记录跳过的索引
+                if index != original_index:
+                    self._skipped_indices.add(original_index)
+                return data
             except (OSError, ValueError, IOError, RuntimeError) as e:
-                if attempt == 0:
-                    # 只在第一次失败时打印警告，避免日志泛滥
-                    print(f"Warning: Failed to load image at index {index}: {e}")
+                # 记录跳过的索引
+                self._skipped_indices.add(index)
+                
+                # 只对每个索引警告一次
+                if index not in self._warned_indices:
+                    self._warned_indices.add(index)
+                    print(f"Warning: Failed to load image at index {index} "
+                          f"(path: {self.samples[index][0]}): {e}")
                 
                 if attempt == self.max_retry_attempts - 1:
                     # 达到最大重试次数，抛出异常
                     raise RuntimeError(
-                        f"Failed to load {self.max_retry_attempts} consecutive images. "
+                        f"Failed to load {self.max_retry_attempts} consecutive images "
+                        f"starting from index {original_index}. "
                         f"Dataset may contain too many corrupted files. "
-                        f"Please check data integrity."
+                        f"Total skipped: {len(self._skipped_indices)}. "
+                        f"Please run: python scripts/verify_dataset_integrity.py"
                     ) from e
                 
                 # 尝试下一个索引
@@ -54,6 +87,10 @@ class RobustImageFolder(datasets.ImageFolder):
         
         # 不应该到达这里，但作为安全保障
         raise RuntimeError("Unexpected error in RobustImageFolder.__getitem__")
+    
+    def get_valid_indices(self) -> list:
+        """返回所有有效（未跳过）的索引列表"""
+        return [i for i in range(len(self)) if i not in self._skipped_indices]
 
 
 class AlbumentationsTransform:

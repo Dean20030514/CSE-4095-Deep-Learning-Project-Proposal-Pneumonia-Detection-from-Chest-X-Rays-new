@@ -18,67 +18,10 @@ from tqdm import tqdm
 import yaml
 
 from src.models.factory import build_model
+from src.models.losses import FocalLoss, get_loss_function
 from src.utils.device import get_device
 from src.data.datamodule import build_dataloaders
 from src.utils.config_validator import ConfigValidator
-
-
-class FocalLoss(nn.Module):
-    """Focal Loss for addressing class imbalance.
-    
-    Focal Loss down-weights easy examples and focuses training on hard negatives.
-    Particularly useful for medical imaging where class imbalance is common.
-    
-    Reference: Lin et al. "Focal Loss for Dense Object Detection" (2017)
-    
-    Args:
-        gamma: Focusing parameter (default: 1.5). Higher values increase focus on hard examples.
-        weight: Per-class weights for handling imbalance (optional)
-        reduction: Reduction method ('mean', 'sum', or 'none')
-    
-    Example:
-        >>> loss_fn = FocalLoss(gamma=2.0, weight=torch.tensor([1.0, 2.0]))
-        >>> loss = loss_fn(logits, targets)
-    """
-    def __init__(self, gamma: float = 1.5, weight=None, reduction: str = 'mean'):
-        super().__init__()
-        self.gamma = gamma
-        self.weight = weight
-        self.reduction = reduction
-
-    def forward(self, logits, targets):
-        """
-        Args:
-            logits: Model outputs (N, C) before softmax
-            targets: Ground truth labels (N,)
-        
-        Returns:
-            Focal loss value
-        """
-        # 计算 log probabilities（数值稳定）
-        log_probs = torch.nn.functional.log_softmax(logits, dim=-1)
-        
-        # 获取目标类别的 log probability
-        log_pt = log_probs.gather(1, targets.unsqueeze(1)).squeeze(1)
-        
-        # 计算 probability pt
-        pt = torch.exp(log_pt)
-        
-        # Focal Loss 公式: -(1-pt)^gamma * log(pt)
-        focal_weight = (1 - pt) ** self.gamma
-        focal_loss = -focal_weight * log_pt
-        
-        # 应用类别权重（如果提供）
-        if self.weight is not None:
-            focal_loss = focal_loss * self.weight[targets]
-        
-        # 应用 reduction
-        if self.reduction == 'mean':
-            return focal_loss.mean()
-        elif self.reduction == 'sum':
-            return focal_loss.sum()
-        else:
-            return focal_loss
 
 
 def set_seed(seed: int = 42):
@@ -272,12 +215,10 @@ def main():
     counts = torch.bincount(torch.tensor(train_targets), minlength=num_classes).float()
     weights = (counts.sum() / (num_classes * counts.clamp(min=1))).to(device)
 
-    if loss_name.startswith('focal'):
-        # 兼容两种配置格式: focal.gamma 或 focal_gamma
-        gamma = cfg.get('focal', {}).get('gamma', cfg.get('focal_gamma', 1.5))
-        loss_fn = FocalLoss(gamma=float(gamma), weight=weights)
-    else:
-        loss_fn = nn.CrossEntropyLoss(weight=weights)
+    # 使用工厂函数创建损失函数，兼容两种配置格式: focal.gamma 或 focal_gamma
+    gamma = cfg.get('focal', {}).get('gamma', cfg.get('focal_gamma', 1.5))
+    smoothing = cfg.get('label_smoothing', 0.0)
+    loss_fn = get_loss_function(loss_name, weight=weights, gamma=gamma, smoothing=smoothing)
 
     optimizer = AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)
     
@@ -323,7 +264,34 @@ def main():
     # AMP只在GPU模式下启用，CPU模式自动禁用以避免警告
     device_type = 'cuda' if torch.cuda.is_available() else 'cpu'
     use_amp_actual = use_amp and torch.cuda.is_available()  # CPU强制禁用AMP
-    scaler = GradScaler(device_type, enabled=use_amp_actual)
+    
+    # 检测是否支持 bfloat16（Ampere+ GPU）
+    use_bf16 = cfg.get('use_bf16', False)
+    if use_bf16 and torch.cuda.is_available():
+        if torch.cuda.is_bf16_supported():
+            amp_dtype = torch.bfloat16
+            # bfloat16 不需要 GradScaler
+            scaler = GradScaler(device_type, enabled=False)
+            print("  - Mixed precision: bfloat16 (no scaling needed)")
+        else:
+            print("  - [WARNING] bfloat16 not supported on this GPU, falling back to float16")
+            amp_dtype = torch.float16
+            scaler = GradScaler(device_type, enabled=use_amp_actual)
+    else:
+        amp_dtype = torch.float16
+        scaler = GradScaler(device_type, enabled=use_amp_actual)
+    
+    # TensorBoard 支持
+    tensorboard_writer = None
+    if cfg.get('tensorboard', False):
+        try:
+            from torch.utils.tensorboard import SummaryWriter
+            tensorboard_dir = save_dir / 'tensorboard'
+            tensorboard_writer = SummaryWriter(log_dir=str(tensorboard_dir))
+            print(f"  - TensorBoard: enabled (logs in {tensorboard_dir})")
+        except ImportError:
+            print("  - [WARNING] TensorBoard not available (pip install tensorboard)")
+            tensorboard_writer = None
 
     best_score = -1.0
     start_epoch = 1
@@ -444,7 +412,7 @@ def main():
                 
                 optimizer.zero_grad(set_to_none=True)
                 
-                with autocast(device_type, enabled=use_amp_actual):
+                with autocast(device_type, dtype=amp_dtype, enabled=use_amp_actual):
                     logits = model(images)
                     loss = loss_fn(logits, targets)
                 
@@ -485,7 +453,7 @@ def main():
                     images = images.to(device, memory_format=torch.channels_last)
                     targets = targets.to(device)
                     
-                    with autocast(device_type, enabled=use_amp_actual):
+                    with autocast(device_type, dtype=amp_dtype, enabled=use_amp_actual):
                         logits = model(images)
                         loss = loss_fn(logits, targets)
                     
@@ -554,6 +522,18 @@ def main():
             })
             csv_file.flush()
             
+            # TensorBoard 记录
+            if tensorboard_writer is not None:
+                tensorboard_writer.add_scalar('Loss/train', train_loss, epoch)
+                tensorboard_writer.add_scalar('Loss/val', val_loss, epoch)
+                tensorboard_writer.add_scalar('Accuracy/val', val_acc, epoch)
+                tensorboard_writer.add_scalar('Recall/pneumonia', pneumonia_recall, epoch)
+                tensorboard_writer.add_scalar('Recall/normal', normal_recall, epoch)
+                tensorboard_writer.add_scalar('Recall/macro', macro_recall, epoch)
+                tensorboard_writer.add_scalar('F1/pneumonia', pneumonia_f1, epoch)
+                tensorboard_writer.add_scalar('F1/macro', macro_f1, epoch)
+                tensorboard_writer.add_scalar('Learning_rate', current_lr, epoch)
+            
             # 保存 last checkpoint（按间隔或最后一个epoch）
             ckpt_state = {
                 'model': model.state_dict(),
@@ -609,7 +589,13 @@ def main():
         log_print(f"  1. Evaluate: python src/eval.py --ckpt {best_ckpt} --data_root {args.data_root} --split test")
         log_print(f"  2. Analyze: python scripts/error_analysis.py --ckpt {best_ckpt}")
         log_print("  3. Demo: streamlit run src/app/streamlit_app.py")
+        if tensorboard_writer is not None:
+            log_print(f"  4. TensorBoard: tensorboard --logdir {save_dir / 'tensorboard'}")
         log_print("=" * 60)
+        
+        # 关闭 TensorBoard writer
+        if tensorboard_writer is not None:
+            tensorboard_writer.close()
     
     # 文件已通过 ExitStack 自动关闭
     

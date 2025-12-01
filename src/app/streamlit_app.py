@@ -175,15 +175,52 @@ def get_available_models():
 
 
 def get_model_performance(experiment_name):
-    """Get test set performance for a model from analysis results"""
-    perf_map = {
+    """
+    Get test set performance for a model from JSON report files.
+    
+    Searches for performance data in:
+    1. reports/test_{experiment_name}.json
+    2. runs/{experiment_name}/evaluation_curves/metrics.json
+    3. Fallback to hardcoded values for known experiments
+    """
+    import json
+    
+    # 尝试从报告文件读取
+    report_paths = [
+        Path('reports') / f'test_{experiment_name}.json',
+        Path('runs') / experiment_name / 'evaluation_curves' / 'metrics.json',
+        Path('runs') / experiment_name / 'test_results.json',
+    ]
+    
+    for report_path in report_paths:
+        if report_path.exists():
+            try:
+                with open(report_path, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                    # 提取关键指标
+                    metrics = data.get('metrics', data)
+                    overall = metrics.get('overall', {})
+                    per_class = metrics.get('per_class', {})
+                    pneumonia = per_class.get('PNEUMONIA', per_class.get('pneumonia', {}))
+                    
+                    return {
+                        'macro_recall': overall.get('macro_recall', metrics.get('macro_recall', 0)) * 100,
+                        'pneumonia_recall': pneumonia.get('recall', 0) * 100,
+                        'accuracy': overall.get('accuracy', metrics.get('accuracy', 0)) * 100,
+                        'pr_auc': metrics.get('pr_auc', 0) * 100 if metrics.get('pr_auc') else None,
+                    }
+            except (json.JSONDecodeError, KeyError, TypeError):
+                continue
+    
+    # 回退到硬编码值（为了向后兼容）
+    fallback_map = {
         'aug_aggressive': {'macro_recall': 97.39, 'pneumonia_recall': 97.18, 'accuracy': 97.30, 'pr_auc': 99.89},
         'model_densenet121': {'macro_recall': 98.45, 'pneumonia_recall': 98.11, 'accuracy': 98.29, 'pr_auc': 99.85},
         'lr_0.0001': {'macro_recall': 98.00, 'pneumonia_recall': 99.06, 'accuracy': 98.31, 'pr_auc': 99.90},
         'model_efficientnet_b0': {'macro_recall': 98.38, 'pneumonia_recall': 98.58, 'accuracy': 98.47, 'pr_auc': 99.87},
         'full_resnet18': {'macro_recall': 98.33, 'pneumonia_recall': 97.65, 'accuracy': 98.31, 'pr_auc': 99.86},
     }
-    return perf_map.get(experiment_name, None)
+    return fallback_map.get(experiment_name, None)
 
 
 def main():

@@ -12,7 +12,8 @@ weight_decay: 0.0001
 early_stopping:
   patience: 20
 loss: focal
-focal_gamma: 1.5
+focal:
+  gamma: 1.5
 use_weighted_sampler: true
 augmentation:
   horizontal_flip: 0.5

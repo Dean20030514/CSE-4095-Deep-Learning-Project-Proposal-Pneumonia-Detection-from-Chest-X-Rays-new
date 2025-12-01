@@ -231,6 +231,80 @@ def export_model_from_checkpoint(
     return exported_paths
 
 
+def export_quantized_model(
+    model: nn.Module,
+    img_size: int,
+    output_path: str,
+    calibration_loader: Optional[torch.utils.data.DataLoader] = None,
+    quantization_type: str = 'dynamic'
+) -> Path:
+    """
+    导出量化模型以减小模型大小和提高推理速度。
+    
+    Args:
+        model: PyTorch 模型
+        img_size: 输入图像大小
+        output_path: 输出文件路径
+        calibration_loader: 用于静态量化的校准数据加载器
+        quantization_type: 量化类型 ('dynamic', 'static', 'qat')
+    
+    Returns:
+        导出文件的路径
+    
+    Example:
+        >>> export_quantized_model(model, 224, 'model_quantized.pt')
+    """
+    model.eval()
+    model_cpu = model.cpu()
+    
+    output_path = Path(output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    
+    if quantization_type == 'dynamic':
+        # 动态量化（最简单，无需校准数据）
+        quantized_model = torch.quantization.quantize_dynamic(
+            model_cpu,
+            {nn.Linear, nn.Conv2d},
+            dtype=torch.qint8
+        )
+        torch.save(quantized_model.state_dict(), str(output_path))
+        
+    elif quantization_type == 'static':
+        # 静态量化（需要校准数据）
+        if calibration_loader is None:
+            raise ValueError("calibration_loader is required for static quantization")
+        
+        # 设置量化配置
+        model_cpu.qconfig = torch.quantization.get_default_qconfig('fbgemm')
+        
+        # 准备模型
+        prepared_model = torch.quantization.prepare(model_cpu)
+        
+        # 校准
+        with torch.no_grad():
+            for inputs, _ in calibration_loader:
+                prepared_model(inputs)
+        
+        # 转换
+        quantized_model = torch.quantization.convert(prepared_model)
+        torch.save(quantized_model.state_dict(), str(output_path))
+        
+    else:
+        raise ValueError(f"Unknown quantization type: {quantization_type}")
+    
+    # 计算压缩比
+    original_size = sum(p.numel() * p.element_size() for p in model.parameters())
+    quantized_size = output_path.stat().st_size
+    compression_ratio = original_size / quantized_size
+    
+    print(f"[OK] Quantized model exported: {output_path}")
+    print(f"  - Original size: {original_size / 1e6:.2f} MB")
+    print(f"  - Quantized size: {quantized_size / 1e6:.2f} MB")
+    print(f"  - Compression ratio: {compression_ratio:.2f}x")
+    
+    return output_path
+
+
 if __name__ == '__main__':
     import argparse
     
@@ -238,7 +312,7 @@ if __name__ == '__main__':
     parser.add_argument('--checkpoint', required=True, help='Path to checkpoint')
     parser.add_argument('--output_dir', default='exports', help='Output directory')
     parser.add_argument('--formats', nargs='+', default=['onnx', 'torchscript'],
-                       choices=['onnx', 'torchscript'], help='Export formats')
+                       choices=['onnx', 'torchscript', 'quantized'], help='Export formats')
     args = parser.parse_args()
     
     paths = export_model_from_checkpoint(args.checkpoint, args.output_dir, args.formats)
