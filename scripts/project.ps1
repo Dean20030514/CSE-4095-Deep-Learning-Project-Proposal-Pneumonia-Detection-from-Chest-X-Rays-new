@@ -302,7 +302,7 @@ function Invoke-Test {
     
     if ($DoLint) {
         Write-Log "运行代码检查..." $Colors.Info
-        ruff check src/ scripts/ --fix
+        ruff check src/ scripts/
         Test-Success "代码检查" | Out-Null
     }
 }
