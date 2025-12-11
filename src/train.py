@@ -22,6 +22,7 @@ from src.models.losses import get_loss_function
 from src.utils.device import get_device
 from src.data.datamodule import build_dataloaders
 from src.utils.config_validator import ConfigValidator
+from src.utils.config_loader import load_config
 
 # 可选：Pydantic 验证（如果可用）
 try:
@@ -99,10 +100,11 @@ def main():
                        help='Export best model to TorchScript format after training')
     args = parser.parse_args()
 
-    # 加载配置
+    # 加载配置（支持继承）
     print(f"\n[CONFIG] Loading configuration from: {args.config}")
-    with open(args.config, 'r', encoding='utf-8') as f:
-        cfg = yaml.safe_load(f)
+    cfg = load_config(args.config)
+    if '_base_' in cfg:
+        print(f"  - Inherits from: {cfg.get('_base_', 'none')}")
     
     # 验证配置
     try:
@@ -192,8 +194,7 @@ def main():
         aug_config=aug_config
     )
     num_classes = len(class_to_idx)
-    # idx_to_class = {v: k for k, v in class_to_idx.items()}  # Unused for now
-    
+
     # 找到 PNEUMONIA 类的索引(用于计算 recall)
     pneumonia_idx = class_to_idx.get('PNEUMONIA', class_to_idx.get('pneumonia', 1))
 
@@ -228,8 +229,22 @@ def main():
     # 优化 3: 使用 channels_last 内存格式 (更高效的内存访问模式)
     model = model.to(memory_format=torch.channels_last)
     print("  - Memory format: channels_last")
-    
-    # 优化 6: 显存优化模式（可选）
+
+    # 优化 4: torch.compile() 加速 (PyTorch 2.0+)
+    use_compile = cfg.get('compile_model', False)
+    if use_compile:
+        torch_version = tuple(int(x) for x in torch.__version__.split('.')[:2] if x.isdigit())
+        if len(torch_version) >= 2 and torch_version >= (2, 0):
+            compile_mode = cfg.get('compile_mode', 'reduce-overhead')
+            try:
+                model = torch.compile(model, mode=compile_mode)
+                print(f"  - torch.compile(): enabled (mode={compile_mode})")
+            except Exception as e:
+                print(f"  - torch.compile(): failed ({e}), using eager mode")
+        else:
+            print(f"  - torch.compile(): requires PyTorch 2.0+ (current: {torch.__version__})")
+
+    # 优化 5: 显存优化模式（可选）
     memory_efficient = cfg.get('memory_efficient', False)
     if memory_efficient and torch.cuda.is_available():
         print("\n[Memory Efficient Mode Enabled]")

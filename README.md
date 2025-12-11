@@ -122,6 +122,9 @@ streamlit run src/app/streamlit_app.py
 - **Explainability:** Grad-CAM visualization
 - **Comprehensive Analysis:** Threshold sweep, calibration, error analysis
 - **Production Ready:** Streamlit demo app
+- **Performance Optimization:** torch.compile() support (PyTorch 2.0+)
+- **Cross-Platform:** CUDA, MPS (Apple Silicon), DirectML, CPU support
+- **Config Inheritance:** Reduce config duplication with `_base_` inheritance
 
 ---
 
@@ -309,8 +312,11 @@ python src/utils/config_validator.py src/configs/final_model.yaml
 ## 🛠️ Requirements
 
 - Python 3.8+ (3.13+ recommended)
-- PyTorch 2.9+
-- **CUDA 13.0 support** ✅ GPU acceleration available
+- PyTorch 2.0+ (2.9+ recommended for torch.compile)
+- **Multi-Platform GPU Support:**
+  - CUDA (NVIDIA GPUs) ✅
+  - MPS (Apple Silicon M1/M2/M3) ✅
+  - DirectML (AMD/Intel on Windows) ✅
 - 8GB RAM (16GB recommended)
 - GPU with 8GB+ VRAM (tested on RTX 5070)
 
@@ -333,4 +339,4 @@ This project is licensed under the **MIT License** - see [LICENSE](LICENSE) file
 
 ---
 
-**Last Updated:** 2025-11-18 | **Status:** ✅ Production-Ready | **GPU:** CUDA 13.0 + RTX 5070 ⚡
+**Last Updated:** 2025-12-11 | **Status:** ✅ Production-Ready | **GPU:** CUDA, MPS, DirectML ⚡

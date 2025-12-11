@@ -1,6 +1,21 @@
 # Configuration Files Documentation
 
-> **18 training configurations** | Covering architectures, learning rates, data augmentation experiments
+> **19 training configurations** | Covering architectures, learning rates, data augmentation experiments
+
+---
+
+## 🆕 Configuration Inheritance (New!)
+
+Configs now support inheritance via `_base_` field to reduce duplication:
+
+```yaml
+# src/configs/my_experiment.yaml
+_base_: _base.yaml          # Inherit from base config
+model: efficientnet_b2      # Override specific values
+lr: 0.0005
+```
+
+**Base config:** `_base.yaml` contains all default settings
 
 ---
 
@@ -239,6 +254,16 @@ python src/train.py \
 | `val_interval` | Validation interval (default every epoch) |
 | `early_stopping.patience` | Early stopping patience value |
 | `warmup_epochs` | Learning rate warmup epochs |
+
+### Performance Optimization Parameters (New!)
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `compile_model` | bool | false | Enable torch.compile() (PyTorch 2.0+) |
+| `compile_mode` | str | reduce-overhead | Compile mode: default, reduce-overhead, max-autotune |
+| `use_bf16` | bool | false | Use bfloat16 instead of float16 (Ampere+ GPUs) |
+| `memory_efficient` | bool | false | Enable memory-efficient mode |
+| `allow_tf32` | bool | true | Enable TF32 for faster matrix ops |
 
 ---
 

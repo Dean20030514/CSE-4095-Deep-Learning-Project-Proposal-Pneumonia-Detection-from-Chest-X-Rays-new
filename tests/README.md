@@ -262,9 +262,18 @@ pytest tests/ --cov=src --cov-report=term-missing
 - ✅ `test_gradcam_different_architectures` - 不同架构
 
 **TestDeviceSelection (3 tests):**
-- ✅ `test_get_device` - 设备选择
+- ✅ `test_get_device` - 设备选择 (CUDA/MPS/DirectML/CPU)
 - ✅ `test_device_usable` - 设备可用性
 - ✅ `test_model_to_device` - 模型设备转换
+
+**TestConfigLoader (New!):**
+- ✅ `test_load_config_basic` - 基本配置加载
+- ✅ `test_load_config_inheritance` - 配置继承
+- ✅ `test_deep_merge` - 深度合并
+
+**TestTrainingUtils (New!):**
+- ✅ `test_early_stopping` - 早停机制
+- ✅ `test_average_meter` - 指标平均器
 
 **TestConfigValidator (10 tests):**
 - ✅ `test_valid_config` - 有效配置
@@ -514,6 +523,6 @@ pip install -e .
 
 ---
 
-**测试框架:** pytest 9.0.1+  
-**最后更新:** 2025-11-19  
+**测试框架:** pytest 9.0.1+
+**最后更新:** 2025-12-11
 **维护状态:** 积极维护中 ✅

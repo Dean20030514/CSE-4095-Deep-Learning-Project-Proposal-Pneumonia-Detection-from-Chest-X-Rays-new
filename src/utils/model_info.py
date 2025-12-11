@@ -5,7 +5,7 @@
 """
 import torch
 import torch.nn as nn
-from typing import Dict, Tuple, Optional
+from typing import Any, Dict, Optional, Tuple
 import sys
 
 
@@ -189,7 +189,7 @@ def get_model_complexity(
     model: nn.Module,
     input_size: Tuple[int, int, int, int] = (1, 3, 224, 224),
     device: str = 'cpu'
-) -> Dict[str, any]:
+) -> Dict[str, Any]:
     """
     获取完整的模型复杂度信息。
     
