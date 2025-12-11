@@ -337,37 +337,42 @@ function Invoke-AdvancedAnalysis {
 
     # 1. 不确定性估计 (MC Dropout)
     $current++; Write-Log "[$current/$total] MC Dropout 不确定性分析..." $Colors.Info
-    python scripts/uncertainty_estimation.py --ckpt $ModelPath --split val --output_dir "$outDir/uncertainty" --n_samples 10
+    python scripts/uncertainty_estimation.py --ckpt $ModelPath --data_root $DataDir --split val --output "$outDir/uncertainty_analysis.json" --num_samples 10
     Test-Success "不确定性估计" | Out-Null
 
     # 2. 域偏移分析
     $current++; Write-Log "[$current/$total] 域偏移分析..." $Colors.Info
-    python scripts/domain_shift_analysis.py --ckpt $ModelPath --output_dir "$outDir/domain_shift"
+    python scripts/domain_shift_analysis.py --ckpt $ModelPath --data_root $DataDir --split val --output "$outDir/domain_shift_analysis.json"
     Test-Success "域偏移分析" | Out-Null
 
     # 3. 标签噪声检测
     $current++; Write-Log "[$current/$total] 标签噪声检测..." $Colors.Info
-    python scripts/label_noise_detection.py --ckpt $ModelPath --output_dir "$outDir/noise_detection"
+    python scripts/label_noise_detection.py --ckpt $ModelPath --data_root $DataDir --split val --output "$outDir/noise_detection.json"
     Test-Success "标签噪声检测" | Out-Null
 
     # 4. 模型集成评估
     $current++; Write-Log "[$current/$total] 模型集成评估..." $Colors.Info
-    python scripts/ensemble_evaluation.py --runs_dir $RunsDir --top_k 3 --output_dir "$outDir/ensemble"
+    python scripts/ensemble_evaluation.py --runs_dir $RunsDir --top_k 3 --data_root $DataDir --split val
     Test-Success "集成评估" | Out-Null
 
     # 5. 学习率范围测试
     $current++; Write-Log "[$current/$total] 学习率范围测试..." $Colors.Info
-    python scripts/find_optimal_lr.py --config $ConfigPath --output_dir "$outDir/lr_finder"
+    python scripts/find_optimal_lr.py --config $ConfigPath --data_root $DataDir --output "$outDir/lr_finder"
     Test-Success "学习率测试" | Out-Null
 
     # 6. 交叉验证
     $current++; Write-Log "[$current/$total] K折交叉验证..." $Colors.Info
-    python scripts/cross_validation.py --config $ConfigPath --k_folds 3 --output_dir "$outDir/cross_val"
+    python scripts/cross_validation.py --config $ConfigPath --data_root $DataDir --n_folds 3 --output_dir "$outDir/cross_val"
     Test-Success "交叉验证" | Out-Null
 
-    # 7. 生成项目报告
+    # 7. 生成项目报告（需要先有验证报告）
     $current++; Write-Log "[$current/$total] 生成综合报告..." $Colors.Info
-    python scripts/generate_project_report.py --output_dir "$outDir"
+    $valReport = Join-Path $ReportsDir "best_model_val.json"
+    if (Test-Path $valReport) {
+        python scripts/generate_project_report.py --val_report $valReport --output "$outDir/PROJECT_REPORT.md"
+    } else {
+        Write-Log "跳过报告生成（缺少 val_report）" $Colors.Warning
+    }
     Test-Success "报告生成" | Out-Null
 
     Write-Log "OK 高级分析完成！结果: $outDir" $Colors.Success

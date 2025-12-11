@@ -42,7 +42,7 @@ def main():
     
     # 加载配置
     if args.config:
-        with open(args.config) as f:
+        with open(args.config, 'r', encoding='utf-8') as f:
             cfg = yaml.safe_load(f)
         model_name = cfg.get('model', args.model)
         img_size = cfg.get('img_size', args.img_size)
@@ -62,7 +62,8 @@ def main():
     
     # 创建模型
     print(f"\n[MODEL] Building {model_name}...")
-    model = build_model(model_name, pretrained=True, num_classes=2).to(device)
+    model, _ = build_model(model_name, num_classes=2)
+    model = model.to(device)
     
     # 加载数据
     print(f"\n[DATA] Loading data from {data_root}...")
@@ -83,16 +84,22 @@ def main():
     print(f"\n[LR TEST] Running LR range test...")
     lr_finder = LRFinder(model, optimizer, criterion, device=str(device))
     
-    lr_finder.range_test(
+    lr_finder.find(
         train_loader,
         start_lr=args.start_lr,
         end_lr=args.end_lr,
-        num_iter=args.num_iters,
-        step_mode='exp'
+        num_iters=args.num_iters
     )
     
     # 找到建议的学习率
-    suggested_lr = lr_finder.suggest_lr()
+    try:
+        suggested_lr = lr_finder.suggest_lr()
+    except ValueError as e:
+        print(f"\n[WARNING] Could not suggest LR: {e}")
+        print("[INFO] Using default LR range based on common practice...")
+        # 使用常用的默认学习率
+        suggested_lr = 1e-4
+        print(f"[INFO] Default suggested LR: {suggested_lr}")
     
     print(f"\n{'='*60}")
     print("Learning Rate Range Test Results")
@@ -113,7 +120,10 @@ def main():
     
     # 保存图表
     print(f"\n[PLOT] Saving LR finder plot...")
-    lr_finder.plot(output_path=str(output_dir / 'lr_finder_plot.png'))
+    try:
+        lr_finder.plot(save_path=str(output_dir / 'lr_finder_plot.png'))
+    except ValueError as e:
+        print(f"[WARNING] Could not generate plot: {e}")
     
     # 保存数据
     import json
@@ -132,9 +142,6 @@ def main():
     
     print(f"[SAVE] Results saved to {output_dir}")
     print(f"{'='*60}")
-    
-    # 重置模型和优化器状态
-    lr_finder.reset()
     
     return suggested_lr
 

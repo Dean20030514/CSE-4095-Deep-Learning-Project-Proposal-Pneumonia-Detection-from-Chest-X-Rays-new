@@ -131,7 +131,7 @@ def run_cross_validation(
     folds = create_fold_datasets(data_root, folds_dir, n_folds, seed)
     
     # 加载配置
-    with open(config_path, 'r') as f:
+    with open(config_path, 'r', encoding='utf-8') as f:
         base_config = yaml.safe_load(f)
     
     # 运行每个 fold

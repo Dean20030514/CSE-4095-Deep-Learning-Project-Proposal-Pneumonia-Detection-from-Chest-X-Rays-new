@@ -52,12 +52,12 @@ def main():
     class_to_idx = ckpt['classes']
     idx_to_class = {v: k for k, v in class_to_idx.items()}
     
-    model = build_model(
+    model, _ = build_model(
         cfg.get('model', 'efficientnet_b2'),
-        pretrained=False,
         num_classes=len(class_to_idx)
-    ).to(device)
-    model.load_state_dict(ckpt['model_state_dict'])
+    )
+    model = model.to(device)
+    model.load_state_dict(ckpt['model'])
     
     # 加载数据
     img_size = int(cfg.get('img_size', 224))
@@ -73,7 +73,7 @@ def main():
     loader = loaders[args.split]
     
     # 创建不确定性估计器
-    estimator = UncertaintyEstimator(model, num_samples=args.num_samples)
+    estimator = UncertaintyEstimator(model, n_mc_samples=args.num_samples)
     
     print(f"\n[EVAL] Estimating uncertainty on {args.split} set...")
     
@@ -90,13 +90,24 @@ def main():
         # 使用 MC Dropout 估计不确定性
         result = estimator.estimate(images)
         
+        # 处理 std 张量 - 可能是 (batch, num_classes) 或者其他形状
+        std_tensor = result['std']
+        
         for i in range(batch_size_cur):
+            # 安全获取 std 值
+            if std_tensor.dim() == 0:
+                std_val = std_tensor.item()
+            elif std_tensor.dim() == 1:
+                std_val = std_tensor[i].item() if i < std_tensor.size(0) else std_tensor.mean().item()
+            else:  # dim >= 2, e.g., (batch, num_classes)
+                std_val = std_tensor[i].mean().item() if i < std_tensor.size(0) else std_tensor.mean().item()
+            
             sample_result = {
                 'index': sample_idx,
                 'true_label': idx_to_class[targets[i].item()],
                 'pred_label': idx_to_class[result['predictions'][i].item()],
-                'mean_prob': result['mean_probs'][i].cpu().numpy().tolist(),
-                'std': result['std'][i].item(),
+                'mean_prob': result['probabilities'][i].cpu().numpy().tolist(),
+                'std': std_val,
                 'entropy': result['entropy'][i].item(),
                 'is_correct': targets[i].item() == result['predictions'][i].item()
             }
@@ -104,7 +115,7 @@ def main():
             all_results.append(sample_result)
             
             # 分类高不确定性样本
-            if result['entropy'][i].item() > args.threshold or result['std'][i].item() > 0.2:
+            if result['entropy'][i].item() > args.threshold or std_val > 0.2:
                 high_uncertainty_samples.append(sample_result)
             
             # 分类正确/错误预测
