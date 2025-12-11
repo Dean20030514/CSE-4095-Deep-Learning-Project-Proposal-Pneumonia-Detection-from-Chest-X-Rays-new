@@ -1,0 +1,74 @@
+# ============================================================================
+# 基础配置文件 - 所有实验配置的默认值
+# ============================================================================
+# 使用方法：在子配置文件中添加 `_base_: _base.yaml` 来继承此配置
+#
+# Example:
+#   # model_efficientnet_b2.yaml
+#   _base_: _base.yaml
+#   model: efficientnet_b2
+#   img_size: 384
+# ============================================================================
+
+# 数据设置
+pretrained: true
+data_root: data
+img_size: 224
+batch_size: 16
+num_workers: 4
+
+# 训练设置
+epochs: 50
+lr: 0.001
+weight_decay: 0.0001
+seed: 42
+
+# 损失函数
+loss: focal
+focal_gamma: 1.5
+
+# 采样器
+use_weighted_sampler: true
+
+# 数据增强
+use_albumentations: true
+augment_level: medium
+augmentation:
+  horizontal_flip: 0.5
+  rotation_degrees: 10
+  brightness: 0.15
+  contrast: 0.15
+
+# 优化器和调度器
+optimizer: adamw
+scheduler: cosine
+warmup_epochs: 2
+
+# 混合精度训练
+amp: true
+use_bf16: false
+
+# 早停
+early_stopping:
+  patience: 15
+  save_last_on_stop: true
+
+# 检查点保存
+save_best_only: false
+val_interval: 1
+save_last_interval: 5
+
+# 梯度设置
+gradient_clipping: true
+max_grad_norm: 1.0
+gradient_accumulation_steps: 1
+
+# 性能优化
+allow_nondeterministic: false
+allow_tf32: true
+memory_efficient: false
+compile_model: false
+compile_mode: reduce-overhead
+
+# 日志
+tensorboard: false

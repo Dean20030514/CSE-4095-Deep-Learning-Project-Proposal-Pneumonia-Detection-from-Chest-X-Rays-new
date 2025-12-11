@@ -178,7 +178,7 @@ def verify_onnx_model(onnx_path: str, img_size: int) -> bool:
 def export_model_from_checkpoint(
     checkpoint_path: str,
     output_dir: str,
-    formats: List[str] = None
+    formats: Optional[List[str]] = None
 ) -> dict:
     """
     从 checkpoint 导出模型到多种格式。

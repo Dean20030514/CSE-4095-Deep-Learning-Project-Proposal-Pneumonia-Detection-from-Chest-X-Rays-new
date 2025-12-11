@@ -1,6 +1,20 @@
 # Scripts Directory Documentation
 
-> **30 script tools** | Organized by function | Optimized and streamlined
+> **31 script tools** | Organized by function | Optimized and streamlined
+
+---
+
+## 🆕 New: Unified Project Manager
+
+```powershell
+# One-stop project management script
+.\scripts\project.ps1 -Quick          # Quick start (~10 min)
+.\scripts\project.ps1 -Train          # Batch training
+.\scripts\project.ps1 -Analyze        # Model analysis
+.\scripts\project.ps1 -All            # Complete workflow
+.\scripts\project.ps1 -Demo           # Start demo
+.\scripts\project.ps1 -Test           # Run tests
+```
 
 ---
 
